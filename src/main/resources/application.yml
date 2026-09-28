@@ -3,9 +3,9 @@ spring:
     name: task-management
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/task_management
-    username: task_user 
-    password: task_password
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:task_management}
+    username: ${POSTGRES_USER:task_user}
+    password: ${POSTGRES_PASSWORD:task_password}
 
   jpa:
     hibernate:
