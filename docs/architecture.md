@@ -120,3 +120,21 @@ Service
 Repository
     ↓
 Database
+```
+
+## 3.4. Database
+
+PostgreSQL lưu ba bảng `users`, `categories`, `tasks`. Flyway quản lý schema
+qua migration trong `src/main/resources/db/migration`; Hibernate chỉ validate.
+Entity JPA đặt trong package `com.taskmanagement.entity`.
+
+- Mỗi user có email duy nhất, password hash và role USER hoặc ADMIN.
+- Mỗi category có tên duy nhất.
+- Task bắt buộc có title và user sở hữu; description, due date và category là tùy chọn.
+- Status: TODO (mặc định), IN_PROGRESS, DONE. Priority: LOW, MEDIUM (mặc định), HIGH.
+- Không xóa user đang có task (foreign key RESTRICT); cần xử lý task trước.
+- Xóa category sẽ đặt category_id của task về NULL và giữ lại task.
+- Khóa chính BIGINT identity. Thời gian dùng TIMESTAMPTZ và Java Instant.
+- Database tự cập nhật updated_at khi UPDATE; không lưu mật khẩu dạng rõ.
+- Entity chỉ ánh xạ quan hệ từ Task đến User/Category, tải LAZY.
+- Quyền quản trị user/category sẽ được thực thi ở tầng service/security khi triển khai API.
