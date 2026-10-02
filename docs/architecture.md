@@ -98,7 +98,6 @@ Không tự ý thêm:
 - Notification
 - File upload
 - Team management
-- Project management
 - Comment
 - Payment
 - Email service
@@ -124,7 +123,7 @@ Database
 
 ## 3.4. Database
 
-PostgreSQL lưu ba bảng `users`, `categories`, `tasks`. Flyway quản lý schema
+PostgreSQL lưu bốn bảng `users`, `categories`, `tasks`, `projects`. Flyway quản lý schema
 qua migration trong `src/main/resources/db/migration`; Hibernate chỉ validate.
 Entity JPA đặt trong package `com.taskmanagement.entity`.
 
@@ -138,3 +137,29 @@ Entity JPA đặt trong package `com.taskmanagement.entity`.
 - Database tự cập nhật updated_at khi UPDATE; không lưu mật khẩu dạng rõ.
 - Entity chỉ ánh xạ quan hệ từ Task đến User/Category, tải LAZY.
 - Quyền quản trị user/category sẽ được thực thi ở tầng service/security khi triển khai API.
+
+## 3.5. CRUD API
+
+- Controller nhận request DTO có Bean Validation và trả response DTO; không trả entity.
+- Service xử lý nghiệp vụ và transaction; Repository kế thừa Spring Data `JpaRepository`.
+- Task có các endpoint tại `/api/tasks`: POST, GET danh sách, GET theo ID, PUT, DELETE.
+- POST trả 201 kèm Location, GET/PUT trả 200, DELETE trả 204.
+- PUT thay thế dữ liệu: trường tùy chọn bị bỏ qua được đặt về null; status/priority
+  bị bỏ qua hoặc null dùng TODO/MEDIUM như khi tạo mới.
+- ID tham chiếu không tồn tại trả 404; request không hợp lệ trả 400; xung đột
+  ràng buộc database trả 409. Lỗi dùng ProblemDetail, validation thêm `errors`.
+- Timestamp lấy từ database sau khi flush. Mapping DTO diễn ra trong transaction
+  để phù hợp với `open-in-view: false`.
+- Chưa triển khai authentication/authorization; `userId` là dữ liệu liên kết,
+  không phải bằng chứng xác thực hay kiểm tra quyền truy cập.
+
+## 3.6. Project
+
+Theo yêu cầu mở rộng CRUD Project, migration V3 thêm `projects` và `tasks.project_id`.
+Project có name (bắt buộc, tối đa 255 ký tự), description tùy chọn và user sở hữu
+bắt buộc. Một project có nhiều task; task có thể không thuộc project. Chủ sở hữu
+task và project có thể khác nhau. Không đặt ràng buộc duy nhất cho tên project.
+Xóa project đặt project_id về NULL, giữ task. Không xóa user đang sở hữu project.
+Entity ánh xạ LAZY từ Project đến User và Task đến Project, không cascade xóa.
+CRUD Project dùng `/api/projects` với cùng phương thức và quy ước HTTP như Task.
+GET danh sách trả mảng theo id tăng dần; phân trang/lọc chưa thuộc phạm vi này.

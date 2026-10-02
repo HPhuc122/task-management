@@ -56,6 +56,7 @@ The system allows users to:
 - change task status
 - assign categories
 - manage users
+- create, view, update and delete projects
 
 An administrator can manage users and categories.
 
@@ -69,6 +70,7 @@ The main entities are:
 - User
 - Task
 - Category
+- Project
 
 
 ### Task Status
@@ -97,6 +99,10 @@ The main entities are:
 User 1 -------- N Task
 
 Category 1 ---- N Task
+
+User 1 -------- N Project
+
+Project 1 ----- N Task (optional for a task)
 ```
 
 ## 3. Run the database and application
@@ -115,8 +121,9 @@ mvn spring-boot:run
 
 Use a private password in `.env` outside local development. Spring Boot runs
 Flyway migrations before Hibernate validates the entity mappings. The first
-startup creates `users`, `categories`, and `tasks`. No demo users or passwords
-are inserted. Store only encoded password hashes in `users.password_hash`.
+startup creates `users`, `categories`, `tasks`, and `projects`. V2 inserts demo
+users, categories and tasks; its placeholder password hashes are for demo data.
+Store only encoded password hashes for real users in `users.password_hash`.
 
 Schema: `src/main/resources/db/migration/V1__create_task_management_schema.sql`.
 For future schema changes, add a new migration (V2, V3, ...); do not edit an
@@ -137,7 +144,55 @@ variables (`POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`,
 RUN_DATABASE_TESTS=true mvn test
 ```
 
-These five tests verify JPA persistence and timestamps, category deletion,
-owner deletion restrictions, status validation and email uniqueness. Flyway
-creates the schema in the selected database; test data is rolled back.
-Without `RUN_DATABASE_TESTS=true`, the database tests are skipped.
+These tests verify JPA persistence and timestamps, category/project deletion,
+owner deletion restrictions, status validation, email uniqueness and HTTP CRUD
+for both Task and Project. Flyway
+creates the schema in the selected database. Database tests roll back their
+fixtures; HTTP CRUD tests use real service transactions and delete their fixtures
+after each test.
+Without `RUN_DATABASE_TESTS=true`, the database tests are skipped; controller
+validation/error tests still run with `mvn test` and do not require PostgreSQL.
+
+## 5. Task and Project CRUD API
+
+| Method | Task | Project | Success |
+| --- | --- | --- | --- |
+| POST | `/api/tasks` | `/api/projects` | 201 + Location |
+| GET | `/api/tasks` | `/api/projects` | 200, array ordered by id |
+| GET | `/api/tasks/{id}` | `/api/projects/{id}` | 200 |
+| PUT | `/api/tasks/{id}` | `/api/projects/{id}` | 200 |
+| DELETE | `/api/tasks/{id}` | `/api/projects/{id}` | 204 |
+
+Create a project (use an existing user ID):
+
+```bash
+curl -i -X POST http://localhost:8080/api/projects \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Spring Boot project","description":"Course work","userId":1}'
+```
+
+Create a task (replace projectId/categoryId with existing IDs, or omit them):
+
+```bash
+curl -i -X POST http://localhost:8080/api/tasks \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Build CRUD API","description":"Controller - Service - JPA","status":"TODO","priority":"HIGH","dueDate":"2027-01-01T00:00:00Z","userId":1,"categoryId":1,"projectId":1}'
+```
+
+PUT uses the same body as POST and replaces the editable fields. Task `title`
+and `userId`, and Project `name` and `userId`, are required. Title/name must be
+nonblank and at most 255 characters; IDs must be positive. Omitted or null
+status/priority become TODO/MEDIUM; omitted optional fields become null.
+Dates use ISO-8601 instants. Deleting a Project preserves its Tasks and clears
+their projectId. A Task owner may differ from its Project owner.
+
+Responses contain IDs of related records, never nested User entities or
+password hashes, and include database-generated `createdAt`/`updatedAt`.
+Invalid input returns 400, missing resources (including referenced IDs) return
+404, and database constraint conflicts return 409, with ProblemDetail bodies.
+Validation errors additionally contain an `errors` object keyed by field name.
+Authentication and authorization have not been implemented yet.
+
+Source structure: `controller` handles HTTP and validation, `service` owns
+transactions and business logic, `repository` provides JPA access, `dto`
+defines API payloads, and `exception` handles errors centrally.
