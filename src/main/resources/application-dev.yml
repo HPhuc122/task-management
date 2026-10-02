@@ -1,0 +1,17 @@
+spring:
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        hightlight_sql: true
+
+logging:
+  level:
+    org.hipernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE
+    com.taskmanagement: DEBUG
+
+  app:
+    cors:
+      alloed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
