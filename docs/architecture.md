@@ -138,3 +138,11 @@ Entity JPA đặt trong package `com.taskmanagement.entity`.
 - Database tự cập nhật updated_at khi UPDATE; không lưu mật khẩu dạng rõ.
 - Entity chỉ ánh xạ quan hệ từ Task đến User/Category, tải LAZY.
 - Quyền quản trị user/category sẽ được thực thi ở tầng service/security khi triển khai API.
+
+## 3.5. API, cache và phân trang hiện có
+
+- `CategoryController` chỉ nhận request/response; `CategoryService` xử lý nghiệp vụ và gọi `CategoryRepository`.
+- `TaskController` gọi `TaskService`; service lấy dữ liệu qua `TaskRepository` và trả DTO, không trả JPA entity trực tiếp.
+- Spring Cache dùng Redis cho danh sách và từng category. Service khai báo `@Cacheable`, `@CachePut`, `@CacheEvict`; `RedisCacheConfig` cấu hình nơi lưu và thời gian sống. Khi ghi category, cache liên quan được cập nhật hoặc xóa.
+- API `GET /api/tasks?userId=...&size=...&cursor=...` phân trang theo `id` giảm dần. Truy vấn trang sau dùng `user_id = ? AND id < ? ORDER BY id DESC LIMIT ?`; migration `V3` tạo index `(user_id, id DESC)`. Đọc thêm một bản ghi để xác định `hasNext`.
+- Docker Compose khởi chạy ứng dụng, PostgreSQL và Redis. Ứng dụng chờ hai dịch vụ phụ thuộc healthy trước khi khởi động.
