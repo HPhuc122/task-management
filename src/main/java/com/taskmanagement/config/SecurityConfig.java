@@ -37,9 +37,14 @@ public class SecurityConfig {
                 .httpBasic(basic -> basic.disable())
                 .logout(logout -> logout.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login").permitAll()
-                        .requestMatchers("/api/users", "/api/users/**", "/api/categories", "/api/categories/**").hasRole("ADMIN")
-                        .anyRequest().authenticated())
+                .requestMatchers(
+                    "/swagger-ui.html",
+                    "/swagger-ui/**",
+                    "/v3/api-docs/**"
+                ).permitAll()
+                .requestMatchers(HttpMethod.POST,"/api/auth/register","/api/auth/login").permitAll()
+                .requestMatchers("/api/users","/api/users/**","/api/categories","/api/categories/**").hasRole("ADMIN")
+                .anyRequest().authenticated())
                 .exceptionHandling(errors -> errors.authenticationEntryPoint(problems).accessDeniedHandler(problems))
                 .oauth2ResourceServer(oauth -> oauth
                         .authenticationEntryPoint(problems).accessDeniedHandler(problems)
