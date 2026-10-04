@@ -18,24 +18,16 @@ public class AuthController {
         this.service = service;
     }
 
-@SecurityRequirements
-@PostMapping("/register")
-public ResponseEntity<AuthResponse> register(
-    @Valid @RequestBody RegisterRequest request) {
-    return ResponseEntity
-        .status(HttpStatus.CREATED)
-        .cacheControl(CacheControl.noStore())
-        .body(service.register(request));
-    }   
+    @SecurityRequirements
+    @PostMapping("/register")
+    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).cacheControl(CacheControl.noStore()).body(service.register(request));
+    }
 
-@SecurityRequirements
-@PostMapping("/login")
-public ResponseEntity<AuthResponse> login(
-    @Valid @RequestBody LoginRequest request) {
-    return ResponseEntity
-        .ok()
-        .cacheControl(CacheControl.noStore())
-        .body(service.login(request));
+    @SecurityRequirements
+    @PostMapping("/login")
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(service.login(request));
     }
 
     @GetMapping("/me")

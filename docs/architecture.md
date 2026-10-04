@@ -174,6 +174,9 @@ GET danh sách trả mảng theo id tăng dần; phân trang/lọc chưa thuộc
 
 ## 3.8. Security, validation và lỗi
 
+- Swagger UI tại `/swagger-ui/index.html` và OpenAPI JSON tại `/v3/api-docs`
+  truy cập công khai để tra cứu API. Tài liệu khai báo Bearer JWT cho các API
+  cần xác thực; đăng ký và đăng nhập không yêu cầu token.
 - `POST /api/auth/register` và `POST /api/auth/login` public; `GET /api/auth/me`
   và các API khác yêu cầu `Authorization: Bearer <accessToken>`.
 - Đăng ký chỉ tạo USER, không nhận role từ client. Email giữ nguyên hoa/thường
