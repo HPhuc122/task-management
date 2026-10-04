@@ -3,6 +3,7 @@ package com.taskmanagement.demo;
 import com.taskmanagement.entity.User;
 import com.taskmanagement.entity.UserRole;
 import com.taskmanagement.repository.UserRepository;
+import java.nio.charset.StandardCharsets;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -30,8 +31,17 @@ public class DemoAccountSeeder implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments arguments) {
+        validatePassword(properties.userPassword(), "DEMO_USER_PASSWORD");
+        validatePassword(properties.adminPassword(), "DEMO_ADMIN_PASSWORD");
         activate("phuc@example.com", "demo_password_hash_2", properties.userPassword(), UserRole.USER);
         activate("admin@example.com", "demo_password_hash_3", properties.adminPassword(), UserRole.ADMIN);
+    }
+
+    private static void validatePassword(String value, String variable) {
+        if (value == null || value.isBlank() || value.length() < 8
+                || value.getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new IllegalStateException(variable + " must contain 8 to 72 UTF-8 bytes");
+        }
     }
 
     private void activate(String email, String placeholderHash, String rawPassword, UserRole role) {
