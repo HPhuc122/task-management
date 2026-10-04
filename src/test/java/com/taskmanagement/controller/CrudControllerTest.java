@@ -4,6 +4,11 @@ import com.taskmanagement.exception.ResourceNotFoundException;
 import com.taskmanagement.service.ProjectService;
 import com.taskmanagement.service.TaskService;
 import org.junit.jupiter.api.Test;
+import com.taskmanagement.repository.UserRepository;
+import com.taskmanagement.security.SecurityTestConfig;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,8 +23,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest({TaskController.class, ProjectController.class})
+@Import(SecurityTestConfig.class)
+@TestPropertySource(properties = SecurityTestConfig.SECRET_PROPERTY)
+@WithMockUser(username = "1", roles = "ADMIN")
 class CrudControllerTest {
     @Autowired MockMvc mvc;
+    @MockitoBean UserRepository users;
     @MockitoBean TaskService tasks;
     @MockitoBean ProjectService projects;
 
@@ -76,6 +85,22 @@ class CrudControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail").value(
                         "The operation conflicts with existing data or a database constraint"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"0", "-1"})
+    void rejectsNonPositivePathIds(String id) throws Exception {
+        mvc.perform(get("/api/tasks/" + id)).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.id").exists());
+        mvc.perform(delete("/api/projects/" + id)).andExpect(status().isBadRequest());
+        verifyNoInteractions(tasks, projects);
+    }
+
+    @Test
+    void hidesUnexpectedFailureDetails() throws Exception {
+        when(tasks.findAll()).thenThrow(new IllegalStateException("private backend information"));
+        mvc.perform(get("/api/tasks")).andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.detail").value("An unexpected error occurred"));
     }
 
     @Test

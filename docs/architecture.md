@@ -150,8 +150,8 @@ Entity JPA đặt trong package `com.taskmanagement.entity`.
   ràng buộc database trả 409. Lỗi dùng ProblemDetail, validation thêm `errors`.
 - Timestamp lấy từ database sau khi flush. Mapping DTO diễn ra trong transaction
   để phù hợp với `open-in-view: false`.
-- Chưa triển khai authentication/authorization; `userId` là dữ liệu liên kết,
-  không phải bằng chứng xác thực hay kiểm tra quyền truy cập.
+- API CRUD yêu cầu JWT; `userId` là dữ liệu liên kết, không phải bằng chứng xác thực.
+  Quyền sở hữu được kiểm tra ở service theo danh tính đã xác thực.
 
 ## 3.6. Project
 
@@ -163,3 +163,30 @@ Xóa project đặt project_id về NULL, giữ task. Không xóa user đang s�
 Entity ánh xạ LAZY từ Project đến User và Task đến Project, không cascade xóa.
 CRUD Project dùng `/api/projects` với cùng phương thức và quy ước HTTP như Task.
 GET danh sách trả mảng theo id tăng dần; phân trang/lọc chưa thuộc phạm vi này.
+
+## 3.7. Security, validation và lỗi
+
+- `POST /api/auth/register` và `POST /api/auth/login` public; `GET /api/auth/me`
+  và các API khác yêu cầu `Authorization: Bearer <accessToken>`.
+- Đăng ký chỉ tạo USER, không nhận role từ client. Email giữ nguyên hoa/thường
+  theo unique constraint hiện tại. Password tối thiểu 8 ký tự, tối đa 72 byte UTF-8,
+  lưu bằng BCrypt. Seed V2 là placeholder, không dùng để đăng nhập.
+- Spring Security Resource Server xác minh JWT HS256 (signature, issuer, thời hạn,
+  subject user ID). Secret Base64 ít nhất 32 byte lấy từ `JWT_SECRET`, bắt buộc ở
+  mọi profile; không có secret mặc định. Access token mặc định sống 1 giờ.
+- Stateless, không session/cookie authentication; CSRF tắt cho Bearer API. CORS
+  do Security filter chain xử lý với danh sách origin cấu hình theo profile.
+- Mỗi request lấy user/role hiện tại từ DB: user bị xóa không xác thực được,
+  thay đổi role có hiệu lực ngay. Chưa có refresh token/logout/revocation riêng;
+  client xóa token khi logout, token đã cấp sống đến hết hạn.
+- USER chỉ liệt kê/đọc/sửa/xóa task và project mình sở hữu, chỉ tạo hoặc cập nhật
+  với `userId` của mình; gắn task vào project cũng yêu cầu sở hữu project.
+  ADMIN truy cập toàn bộ và được gán user/project khác nhau, giữ quan hệ DB cũ.
+  Truy cập resource của người khác trả 403; resource không tồn tại trả 404.
+- Quyền quản trị user/category được dành cho ADMIN; chưa mở rộng CRUD hai loại
+  resource này trong lần triển khai security. Tài khoản ADMIN được cấp ngoài API
+  đăng ký bằng quy trình quản trị DB; không seed mật khẩu công khai.
+- DTO và path ID được Bean Validation kiểm tra. ProblemDetail thống nhất cho
+  MVC và Security: 400 input, 401 authentication, 403 authorization, 404 missing,
+  409 conflict, 500 unexpected. Validation thêm `errors` theo field/parameter;
+  lỗi không trả SQL, stack trace, password hay chi tiết token.

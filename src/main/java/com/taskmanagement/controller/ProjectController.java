@@ -4,6 +4,7 @@ import com.taskmanagement.dto.ProjectRequest;
 import com.taskmanagement.dto.ProjectResponse;
 import com.taskmanagement.service.ProjectService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import java.net.URI;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
@@ -25,7 +26,7 @@ public class ProjectController {
     }
 
     @GetMapping("/{id}")
-    public ProjectResponse findById(@PathVariable Long id) {
+    public ProjectResponse findById(@PathVariable @Positive Long id) {
         return service.findById(id);
     }
 
@@ -38,12 +39,12 @@ public class ProjectController {
     }
 
     @PutMapping("/{id}")
-    public ProjectResponse update(@PathVariable Long id, @Valid @RequestBody ProjectRequest request) {
+    public ProjectResponse update(@PathVariable @Positive Long id, @Valid @RequestBody ProjectRequest request) {
         return service.update(id, request);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable @Positive Long id) {
         service.delete(id);
         return ResponseEntity.noContent().build();
     }

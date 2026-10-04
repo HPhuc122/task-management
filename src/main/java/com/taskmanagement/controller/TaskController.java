@@ -4,6 +4,7 @@ import com.taskmanagement.dto.TaskRequest;
 import com.taskmanagement.dto.TaskResponse;
 import com.taskmanagement.service.TaskService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import java.net.URI;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
@@ -25,7 +26,7 @@ public class TaskController {
     }
 
     @GetMapping("/{id}")
-    public TaskResponse findById(@PathVariable Long id) {
+    public TaskResponse findById(@PathVariable @Positive Long id) {
         return service.findById(id);
     }
 
@@ -38,12 +39,12 @@ public class TaskController {
     }
 
     @PutMapping("/{id}")
-    public TaskResponse update(@PathVariable Long id, @Valid @RequestBody TaskRequest request) {
+    public TaskResponse update(@PathVariable @Positive Long id, @Valid @RequestBody TaskRequest request) {
         return service.update(id, request);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable @Positive Long id) {
         service.delete(id);
         return ResponseEntity.noContent().build();
     }

@@ -17,3 +17,14 @@ spring:
 
 server:
   port: 8080
+
+logging:
+  level:
+    # Validation exceptions can contain rejected passwords when logged at DEBUG.
+    org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver: INFO
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:}
+    issuer: task-management
+    access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:1h}

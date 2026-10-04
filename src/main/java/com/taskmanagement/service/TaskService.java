@@ -10,6 +10,7 @@ import com.taskmanagement.repository.CategoryRepository;
 import com.taskmanagement.repository.ProjectRepository;
 import com.taskmanagement.repository.TaskRepository;
 import com.taskmanagement.repository.UserRepository;
+import com.taskmanagement.security.CurrentUser;
 import java.util.List;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -19,20 +20,24 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class TaskService {
     private final TaskRepository tasks;
+    private final CurrentUser currentUser;
     private final UserRepository users;
     private final CategoryRepository categories;
     private final ProjectRepository projects;
 
     public TaskService(TaskRepository tasks, UserRepository users,
-                       CategoryRepository categories, ProjectRepository projects) {
+                       CategoryRepository categories, ProjectRepository projects, CurrentUser currentUser) {
         this.tasks = tasks;
+        this.currentUser = currentUser;
         this.users = users;
         this.categories = categories;
         this.projects = projects;
     }
 
     public List<TaskResponse> findAll() {
-        return tasks.findAll(Sort.by("id")).stream().map(TaskResponse::from).toList();
+        return (currentUser.isAdmin() ? tasks.findAll(Sort.by("id"))
+                : tasks.findAllByUserId(currentUser.id(), Sort.by("id")))
+                .stream().map(TaskResponse::from).toList();
     }
 
     public TaskResponse findById(Long id) {
@@ -60,16 +65,22 @@ public class TaskService {
     }
 
     private Task requireTask(Long id) {
-        return tasks.findById(id).orElseThrow(() -> new ResourceNotFoundException("Task", id));
+        Task resource = tasks.findById(id).orElseThrow(() -> new ResourceNotFoundException("Task", id));
+        currentUser.requireOwner(resource.getUser().getId());
+        return resource;
     }
 
     private void apply(Task task, TaskRequest request) {
+        currentUser.requireOwner(request.userId());
         task.setUser(users.findById(request.userId())
                 .orElseThrow(() -> new ResourceNotFoundException("User", request.userId())));
         task.setCategory(request.categoryId() == null ? null : categories.findById(request.categoryId())
                 .orElseThrow(() -> new ResourceNotFoundException("Category", request.categoryId())));
         task.setProject(request.projectId() == null ? null : projects.findById(request.projectId())
                 .orElseThrow(() -> new ResourceNotFoundException("Project", request.projectId())));
+        if (task.getProject() != null) {
+            currentUser.requireOwner(task.getProject().getUser().getId());
+        }
         task.setTitle(request.title().strip());
         task.setDescription(request.description());
         task.setStatus(request.status() == null ? TaskStatus.TODO : request.status());

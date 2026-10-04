@@ -3,6 +3,8 @@ package com.taskmanagement;
 import com.taskmanagement.entity.*;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
+import com.taskmanagement.security.SecurityTestConfig;
+import org.springframework.test.context.TestPropertySource;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -13,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
+@TestPropertySource(properties = SecurityTestConfig.SECRET_PROPERTY)
 @Transactional
 @EnabledIfEnvironmentVariable(named = "RUN_DATABASE_TESTS", matches = "true")
 class DatabaseIntegrationTest {

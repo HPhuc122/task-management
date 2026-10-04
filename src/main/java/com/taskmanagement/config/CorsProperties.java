@@ -11,7 +11,7 @@ public class CorsProperties {
         return allowedOrigins;
     }
 
-    public void setAllowedOrigns(List<String> allowedOrigins) {
+    public void setAllowedOrigins(List<String> allowedOrigins) {
         this.allowedOrigins = allowedOrigins;
     }
 }

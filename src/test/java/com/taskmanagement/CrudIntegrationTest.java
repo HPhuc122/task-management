@@ -8,6 +8,8 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import com.taskmanagement.security.SecurityTestConfig;
+import org.springframework.test.context.TestPropertySource;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -26,6 +28,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
+@TestPropertySource(properties = SecurityTestConfig.SECRET_PROPERTY)
+@org.springframework.security.test.context.support.WithMockUser(username = "1", roles = "ADMIN")
 @AutoConfigureMockMvc
 @EnabledIfEnvironmentVariable(named = "RUN_DATABASE_TESTS", matches = "true")
 class CrudIntegrationTest {

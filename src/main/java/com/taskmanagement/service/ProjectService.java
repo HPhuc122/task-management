@@ -6,6 +6,7 @@ import com.taskmanagement.entity.Project;
 import com.taskmanagement.exception.ResourceNotFoundException;
 import com.taskmanagement.repository.ProjectRepository;
 import com.taskmanagement.repository.UserRepository;
+import com.taskmanagement.security.CurrentUser;
 import java.util.List;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -15,15 +16,19 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ProjectService {
     private final ProjectRepository projects;
+    private final CurrentUser currentUser;
     private final UserRepository users;
 
-    public ProjectService(ProjectRepository projects, UserRepository users) {
+    public ProjectService(ProjectRepository projects, UserRepository users, CurrentUser currentUser) {
         this.projects = projects;
+        this.currentUser = currentUser;
         this.users = users;
     }
 
     public List<ProjectResponse> findAll() {
-        return projects.findAll(Sort.by("id")).stream().map(ProjectResponse::from).toList();
+        return (currentUser.isAdmin() ? projects.findAll(Sort.by("id"))
+                : projects.findAllByUserId(currentUser.id(), Sort.by("id")))
+                .stream().map(ProjectResponse::from).toList();
     }
 
     public ProjectResponse findById(Long id) {
@@ -51,10 +56,13 @@ public class ProjectService {
     }
 
     private Project requireProject(Long id) {
-        return projects.findById(id).orElseThrow(() -> new ResourceNotFoundException("Project", id));
+        Project resource = projects.findById(id).orElseThrow(() -> new ResourceNotFoundException("Project", id));
+        currentUser.requireOwner(resource.getUser().getId());
+        return resource;
     }
 
     private void apply(Project project, ProjectRequest request) {
+        currentUser.requireOwner(request.userId());
         project.setUser(users.findById(request.userId())
                 .orElseThrow(() -> new ResourceNotFoundException("User", request.userId())));
         project.setName(request.name().strip());
