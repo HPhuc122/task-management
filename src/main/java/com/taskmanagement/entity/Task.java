@@ -31,6 +31,10 @@ public class Task extends BaseEntity {
     @JoinColumn(name = "category_id")
     private Category category;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "project_id")
+    private Project project;
+
     public Task() {}
 
     public String getTitle() { return title; }
@@ -53,4 +57,7 @@ public class Task extends BaseEntity {
 
     public Category getCategory() { return category; }
     public void setCategory(Category category) { this.category = category; }
+
+    public Project getProject() { return project; }
+    public void setProject(Project project) { this.project = project; }
 }
