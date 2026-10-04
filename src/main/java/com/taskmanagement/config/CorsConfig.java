@@ -6,7 +6,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.filter.CorsFilter;
 
 @Configuration
 @EnableConfigurationProperties(CorsProperties.class)
@@ -31,8 +30,4 @@ public class CorsConfig {
         return source;
     }
 
-    @Bean 
-    public CorsFilter corsFilter(CorsConfigurationSource corsConfigurationSource) {
-        return new CorsFilter(corsConfigurationSource);
-    }
 }
