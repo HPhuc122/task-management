@@ -1,0 +1,10 @@
+app:
+  demo:
+    user-password: ${DEMO_USER_PASSWORD}
+    admin-password: ${DEMO_ADMIN_PASSWORD}
+
+# SQL statements remain visible through the dev profile, but credential hashes
+# are not printed as bound parameters while demo accounts are activated.
+logging:
+  level:
+    org.hibernate.orm.jdbc.bind: INFO
