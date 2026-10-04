@@ -13,9 +13,11 @@ import org.springframework.stereotype.Component;
 @Component
 public class DatabaseJwtAuthenticationConverter implements Converter<Jwt, AbstractAuthenticationToken> {
     private final UserRepository users;
+    private final DemoAccountAccessPolicy demoAccounts;
 
-    public DatabaseJwtAuthenticationConverter(UserRepository users) {
+    public DatabaseJwtAuthenticationConverter(UserRepository users, DemoAccountAccessPolicy demoAccounts) {
         this.users = users;
+        this.demoAccounts = demoAccounts;
     }
 
     @Override
@@ -28,6 +30,9 @@ public class DatabaseJwtAuthenticationConverter implements Converter<Jwt, Abstra
         }
         var user = users.findById(id)
                 .orElseThrow(() -> new InvalidBearerTokenException("User no longer exists"));
+        if (demoAccounts.blocks(user.getEmail())) {
+            throw new InvalidBearerTokenException("Demo account is disabled");
+        }
         return new JwtAuthenticationToken(jwt,
                 List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name())), Long.toString(id));
     }

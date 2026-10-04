@@ -179,6 +179,13 @@ GET danh sách trả mảng theo id tăng dần; phân trang/lọc chưa thuộc
 - Đăng ký chỉ tạo USER, không nhận role từ client. Email giữ nguyên hoa/thường
   theo unique constraint hiện tại. Password tối thiểu 8 ký tự, tối đa 72 byte UTF-8,
   lưu bằng BCrypt. Seed V2 là placeholder, không dùng để đăng nhập.
+- Profile `demo` nạp thông tin đăng nhập thử nghiệm từ biến môi trường cho đúng
+  hai tài khoản seed USER (`phuc@example.com`) và ADMIN (`admin@example.com`).
+  Nếu hash vẫn là placeholder của V2, ứng dụng thay bằng BCrypt; nếu hash đã
+  khớp mật khẩu cấu hình thì giữ nguyên. Tài khoản có role hoặc mật khẩu khác
+  sẽ làm startup thất bại để tránh ghi đè tài khoản thực. Ngoài profile
+  `demo & !prod`, cả đăng nhập bằng mật khẩu và xác thực JWT của hai tài khoản
+  demo đều bị từ chối, kể cả khi database đã từng được chạy bằng profile demo.
 - Spring Security Resource Server xác minh JWT HS256 (signature, issuer, thời hạn,
   subject user ID). Secret Base64 ít nhất 32 byte lấy từ `JWT_SECRET`, bắt buộc ở
   mọi profile; không có secret mặc định. Access token mặc định sống 1 giờ.

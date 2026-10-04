@@ -126,20 +126,43 @@ any nonlocal deployment. A missing or invalid key prevents startup. Changing the
 key invalidates existing tokens. `JWT_ACCESS_TOKEN_TTL` defaults to `1h`.
 
 Flyway applies `V1` (schema), `V2` (demo data), `V3` (pagination indexes) and
-`V4` (projects) before Hibernate validates the mappings. The current `V2` migration inserts
-sample users, categories and tasks in every environment. Its password hashes
-are placeholders, so these users are **not usable login accounts**. Register a
-new local account through `/api/auth/register`; its password is stored as a
-BCrypt hash. Do not treat the seeded users as production credentials.
+`V4` (projects) before Hibernate validates the mappings. The current `V2`
+migration inserts sample users, categories and tasks in every environment.
+Its password hashes are placeholders. Only the `demo` profile (without `prod`) activates two
+seeded accounts with BCrypt hashes and passwords from `DEMO_USER_PASSWORD` and
+`DEMO_ADMIN_PASSWORD`. Outside that profile, these accounts cannot log in or
+authenticate with a previously issued JWT, even if the database was used in a
+demo run. Do not reuse the demo database, passwords or JWT key in production.
 Never edit a migration already applied to a database. See
 `docs/architecture.md` for relationships and deletion rules.
 
 `docker compose down` preserves database and Redis volumes. Running
 `docker compose down -v` deletes those volumes and their data.
 
-## 4. Verify the implemented features
+## 4. Local test accounts and implemented features
 
-- Set `SPRING_PROFILES_ACTIVE=dev,demo` in `.env` to run the IoC/DI demo on
+Copying `.env.example` enables `dev,demo` and supplies **public local-only**
+credentials. After `docker compose up --build -d`, use `POST /api/auth/login`
+with JSON body:
+
+| Role | Email | Password from `.env.example` | Access |
+| --- | --- | --- | --- |
+| USER | `phuc@example.com` | `local-demo-user-pass` | Own seeded tasks |
+| ADMIN | `admin@example.com` | `local-demo-admin-pass` | Category API and all tasks |
+
+If you already have a local `.env` with `SPRING_PROFILES_ACTIVE=dev,demo`, add
+`DEMO_USER_PASSWORD` and `DEMO_ADMIN_PASSWORD` to it before restarting.
+
+For example, send `{"email":"phuc@example.com","password":"local-demo-user-pass"}`
+to `http://localhost:8080/api/auth/login`, then copy `accessToken` into the
+`Authorization: Bearer <accessToken>` header. In Postman, set Authorization
+type **Bearer Token** and paste the token. The response also contains the
+user ID needed for cursor pagination. Change `SPRING_PROFILES_ACTIVE=prod`
+and set private credentials before any production deployment. If a demo account
+already has a different password or role, startup fails instead of overwriting it;
+use a fresh local database or restore the expected credentials.
+
+- The `demo` profile runs the IoC/DI demo on
   startup. The log shows two `Greeter` beans, `@Primary` selection and the same
   singleton instance injected into two services. Spring creates and manages
   these beans when the application context starts; constructing one with
