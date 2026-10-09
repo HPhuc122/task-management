@@ -121,6 +121,11 @@ Repository
 Database
 ```
 
+Spring AOP áp dụng một aspect cho các phương thức public của REST controller
+để ghi thời gian thực thi và trạng thái thành công/lỗi. Aspect không ghi dữ liệu
+request, response hoặc chi tiết exception; thời gian đo không bao gồm toàn bộ
+vòng đời HTTP như xác thực và tuần tự hóa response.
+
 ## 3.4. Database
 
 PostgreSQL lưu bốn bảng `users`, `categories`, `tasks`, `projects`. Flyway quản lý schema

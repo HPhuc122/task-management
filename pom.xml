@@ -35,6 +35,12 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
+        <!-- Controller execution timing via Spring AOP -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+
         <!-- Stateless Bearer JWT security (versions managed by Spring Boot) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

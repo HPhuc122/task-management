@@ -170,6 +170,11 @@ use a fresh local database or restore the expected credentials.
 - The default `dev` profile logs Hibernate SQL and bound parameters. `prod`
   suppresses detailed SQL logs. Never enable bound-parameter logging for
   production data.
+- Spring AOP logs the execution time of public REST controller methods in
+  milliseconds, including whether they returned or threw an exception. This
+  measures controller method execution, not authentication, request parsing,
+  response serialization, or the full HTTP request. Arguments, headers, tokens,
+  response bodies, and exception details are not logged by the timing aspect.
 - Authenticated ADMIN `GET /api/categories` uses Redis cache. Creating,
   updating or deleting a category updates or invalidates its cache entries.
 - Authenticated `GET /api/tasks?userId=<your-user-id>&size=1` returns a cursor
