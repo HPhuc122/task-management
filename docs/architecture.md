@@ -121,6 +121,11 @@ Repository
 Database
 ```
 
+Spring AOP áp dụng một aspect cho các phương thức public của REST controller
+để ghi thời gian thực thi và trạng thái thành công/lỗi. Aspect không ghi dữ liệu
+request, response hoặc chi tiết exception; thời gian đo không bao gồm toàn bộ
+vòng đời HTTP như xác thực và tuần tự hóa response.
+
 ## 3.4. Database
 
 PostgreSQL lưu bốn bảng `users`, `categories`, `tasks`, `projects`. Flyway quản lý schema
@@ -138,7 +143,15 @@ Entity JPA đặt trong package `com.taskmanagement.entity`.
 - Entity chỉ ánh xạ quan hệ từ Task đến User/Category, tải LAZY.
 - Quyền quản trị user/category sẽ được thực thi ở tầng service/security khi triển khai API.
 
-## 3.5. CRUD API
+## 3.5. API, cache và phân trang hiện có
+
+- `CategoryController` chỉ nhận request/response; `CategoryService` xử lý nghiệp vụ và gọi `CategoryRepository`.
+- `TaskController` gọi `TaskService`; service lấy dữ liệu qua `TaskRepository` và trả DTO, không trả JPA entity trực tiếp.
+- Spring Cache dùng Redis cho danh sách và từng category. Service khai báo `@Cacheable`, `@CachePut`, `@CacheEvict`; `RedisCacheConfig` cấu hình nơi lưu và thời gian sống. Khi ghi category, cache liên quan được cập nhật hoặc xóa.
+- API `GET /api/tasks?userId=...&size=...&cursor=...` phân trang theo `id` giảm dần. Truy vấn trang sau dùng `user_id = ? AND id < ? ORDER BY id DESC LIMIT ?`; migration `V4` tạo index `(user_id, id DESC)`. Đọc thêm một bản ghi để xác định `hasNext`.
+- Docker Compose khởi chạy ứng dụng, PostgreSQL và Redis. Ứng dụng chờ hai dịch vụ phụ thuộc healthy trước khi khởi động.
+
+## 3.6. CRUD API
 
 - Controller nhận request DTO có Bean Validation và trả response DTO; không trả entity.
 - Service xử lý nghiệp vụ và transaction; Repository kế thừa Spring Data `JpaRepository`.
@@ -153,7 +166,7 @@ Entity JPA đặt trong package `com.taskmanagement.entity`.
 - API CRUD yêu cầu JWT; `userId` là dữ liệu liên kết, không phải bằng chứng xác thực.
   Quyền sở hữu được kiểm tra ở service theo danh tính đã xác thực.
 
-## 3.6. Project
+## 3.7. Project
 
 Theo yêu cầu mở rộng CRUD Project, migration V3 thêm `projects` và `tasks.project_id`.
 Project có name (bắt buộc, tối đa 255 ký tự), description tùy chọn và user sở hữu
@@ -164,13 +177,20 @@ Entity ánh xạ LAZY từ Project đến User và Task đến Project, không c
 CRUD Project dùng `/api/projects` với cùng phương thức và quy ước HTTP như Task.
 GET danh sách trả mảng theo id tăng dần; phân trang/lọc chưa thuộc phạm vi này.
 
-## 3.7. Security, validation và lỗi
+## 3.8. Security, validation và lỗi
 
 - `POST /api/auth/register` và `POST /api/auth/login` public; `GET /api/auth/me`
   và các API khác yêu cầu `Authorization: Bearer <accessToken>`.
 - Đăng ký chỉ tạo USER, không nhận role từ client. Email giữ nguyên hoa/thường
   theo unique constraint hiện tại. Password tối thiểu 8 ký tự, tối đa 72 byte UTF-8,
   lưu bằng BCrypt. Seed V2 là placeholder, không dùng để đăng nhập.
+- Profile `demo` nạp thông tin đăng nhập thử nghiệm từ biến môi trường cho đúng
+  hai tài khoản seed USER (`phuc@example.com`) và ADMIN (`admin@example.com`).
+  Nếu hash vẫn là placeholder của V2, ứng dụng thay bằng BCrypt; nếu hash đã
+  khớp mật khẩu cấu hình thì giữ nguyên. Tài khoản có role hoặc mật khẩu khác
+  sẽ làm startup thất bại để tránh ghi đè tài khoản thực. Ngoài profile
+  `demo & !prod`, cả đăng nhập bằng mật khẩu và xác thực JWT của hai tài khoản
+  demo đều bị từ chối, kể cả khi database đã từng được chạy bằng profile demo.
 - Spring Security Resource Server xác minh JWT HS256 (signature, issuer, thời hạn,
   subject user ID). Secret Base64 ít nhất 32 byte lấy từ `JWT_SECRET`, bắt buộc ở
   mọi profile; không có secret mặc định. Access token mặc định sống 1 giờ.
@@ -183,8 +203,8 @@ GET danh sách trả mảng theo id tăng dần; phân trang/lọc chưa thuộc
   với `userId` của mình; gắn task vào project cũng yêu cầu sở hữu project.
   ADMIN truy cập toàn bộ và được gán user/project khác nhau, giữ quan hệ DB cũ.
   Truy cập resource của người khác trả 403; resource không tồn tại trả 404.
-- Quyền quản trị user/category được dành cho ADMIN; chưa mở rộng CRUD hai loại
-  resource này trong lần triển khai security. Tài khoản ADMIN được cấp ngoài API
+- Quyền quản trị user/category được dành cho ADMIN; API category hiện có chỉ cho
+  ADMIN truy cập, API user chưa được triển khai. Tài khoản ADMIN được cấp ngoài API
   đăng ký bằng quy trình quản trị DB; không seed mật khẩu công khai.
 - DTO và path ID được Bean Validation kiểm tra. ProblemDetail thống nhất cho
   MVC và Security: 400 input, 401 authentication, 403 authorization, 404 missing,

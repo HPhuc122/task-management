@@ -6,9 +6,15 @@ spring:
         format_sql: true
         highlight_sql: true
 
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
 logging:
   level:
     org.hibernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE
     com.taskmanagement: DEBUG
 
 app:

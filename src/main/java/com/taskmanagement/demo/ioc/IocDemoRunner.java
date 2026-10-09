@@ -48,6 +48,16 @@ public class IocDemoRunner implements CommandLineRunner {
                 + " tạo DUY NHẤT 1 instance CasualGreeter rồi tái sử dụng ở mọi nơi"
                 + " cần tới nó, kể cả khi hai service hoàn toàn không biết nhau.",
                 sameInstance ? "Giống nhau, như kỳ vọng" : "Khác nhau (không mong đợi!)");
+
+        CasualGreeter managed = (CasualGreeter) injectedIntoGreetingService;
+        CasualGreeter manuallyCreated = new CasualGreeter();
+        log.info("Spring tạo bean khi khởi tạo ApplicationContext; @PostConstruct được gọi: {}",
+                managed.isInitializedBySpring());
+        log.info("Tự new() tạo instance ngoài container: cùng object với bean? {};"
+                + " @PostConstruct được gọi? {}",
+                manuallyCreated == managed, manuallyCreated.isInitializedBySpring());
+        log.info("Instance tự new() không được Spring tiêm dependency, quản lý vòng đời"
+                + " hoặc áp dụng proxy cho @Transactional/@Cacheable.");
  
         log.info("=========================================================");
     }

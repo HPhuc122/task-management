@@ -8,12 +8,23 @@ spring:
   datasource:
     url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:task_management}
     username: ${POSTGRES_USER:task_user}
-    password: ${POSTGRES_PASSWORD:task_password}
+    password: ${POSTGRES_PASSWORD}
 
   jpa:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+
+  flyway:
+    locations: classpath:db/migration
+
+  cache:
+    type: redis
+
+  data:
+    redis:
+      repositories:
+        enabled: false
 
 server:
   port: 8080

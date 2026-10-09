@@ -105,52 +105,101 @@ User 1 -------- N Project
 Project 1 ----- N Task (optional for a task)
 ```
 
-## 3. Run the database and application
+## 3. Run with Docker Compose
 
-Requires Java 21, Maven and Docker. From the project root:
+Docker Desktop with Compose is required. Create a local `.env` from
+`.env.example` (`cp .env.example .env` in a Unix shell, or
+`Copy-Item .env.example .env` in PowerShell), then run from the project root:
 
 ```bash
 cp .env.example .env
-# Generate a key, then set JWT_SECRET in .env to the output (keep it private).
+# Generate a key, then set JWT_SECRET in .env to the output.
 openssl rand -base64 32
-docker compose up -d
-# Export the same variables for Spring Boot (Compose loads .env automatically).
-set -a
-source .env
-set +a
-mvn spring-boot:run
+docker compose up --build -d
 ```
 
-Use a private password in `.env` outside local development. Spring Boot runs
-Flyway migrations before Hibernate validates the entity mappings. The first
-startup creates `users`, `categories`, `tasks`, and `projects`. V2 inserts demo
-users, categories and tasks; its placeholder password hashes are for demo data.
-These demo users cannot log in. Register a new account through `/api/auth/register`;
-the API stores a BCrypt hash in `users.password_hash`.
+This builds and starts the Spring Boot API, PostgreSQL and Redis. The API is at
+`http://localhost:8080` by default; set `APP_PORT` in `.env` to change the host
+port. `docker compose ps` shows container health and `docker compose logs app`
+shows application output. PostgreSQL and Redis publish their ports only on the
+local machine. Keep `.env` private and use a unique database password. Set
+`JWT_SECRET` to a private Base64 key of at least 32 random bytes before startup.
+A missing or invalid key prevents startup. Changing the
+key invalidates existing tokens. `JWT_ACCESS_TOKEN_TTL` defaults to `1h`.
 
-`JWT_SECRET` is required in every profile and must be Base64 encoding of at least
-32 random bytes. Startup fails for a missing/invalid key. `JWT_ACCESS_TOKEN_TTL`
-defaults to `1h` (Spring duration format, minimum `1s`). Changing the secret
-invalidates existing tokens; keep the same private key across application restarts.
+Flyway applies `V1` (schema), `V2` (demo data), `V3` (projects) and
+`V4` (pagination/cache indexes) before Hibernate validates the mappings. The current `V2`
+migration inserts sample users, categories and tasks in every environment.
+Its password hashes are placeholders. Only the `demo` profile (without `prod`) activates two
+seeded accounts with BCrypt hashes and passwords from `DEMO_USER_PASSWORD` and
+`DEMO_ADMIN_PASSWORD`. Outside that profile, these accounts cannot log in or
+authenticate with a previously issued JWT, even if the database was used in a
+demo run. Do not reuse the demo database, passwords or JWT key in production.
+Never edit a migration already applied to a database. See
+`docs/architecture.md` for relationships and deletion rules.
 
-Schema: `src/main/resources/db/migration/V1__create_task_management_schema.sql`.
-For future schema changes, add a new migration (V2, V3, ...); do not edit an
-already applied migration. See `docs/architecture.md` for relationships and
-deletion rules. Email and category uniqueness currently use case-sensitive
-PostgreSQL comparison.
+`docker compose down` preserves database and Redis volumes. Running
+`docker compose down -v` deletes those volumes and their data.
 
-`docker compose down` preserves database data.
-`docker compose down -v` deletes the database volume and all its data.
+## 4. Local test accounts and implemented features
 
-## 4. Database integration tests
+Copying `.env.example` enables `dev,demo` and supplies **public local-only**
+credentials. After `docker compose up --build -d`, use `POST /api/auth/login`
+with JSON body:
 
-Use a separate, disposable PostgreSQL database and export its connection
-variables (`POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`,
-`POSTGRES_PASSWORD`). Then run:
+| Role | Email | Password from `.env.example` | Access |
+| --- | --- | --- | --- |
+| USER | `phuc@example.com` | `local-demo-user-pass` | Own seeded tasks |
+| ADMIN | `admin@example.com` | `local-demo-admin-pass` | Category API and all tasks |
+
+If you already have a local `.env` with `SPRING_PROFILES_ACTIVE=dev,demo`, add
+`DEMO_USER_PASSWORD` and `DEMO_ADMIN_PASSWORD` to it before restarting.
+
+For example, send `{"email":"phuc@example.com","password":"local-demo-user-pass"}`
+to `http://localhost:8080/api/auth/login`, then copy `accessToken` into the
+`Authorization: Bearer <accessToken>` header. In Postman, set Authorization
+type **Bearer Token** and paste the token. The response also contains the
+user ID needed for cursor pagination. Change `SPRING_PROFILES_ACTIVE=prod`
+and set private credentials before any production deployment. If a demo account
+already has a different password or role, startup fails instead of overwriting it;
+use a fresh local database or restore the expected credentials.
+
+- The `demo` profile runs the IoC/DI demo on
+  startup. The log shows two `Greeter` beans, `@Primary` selection and the same
+  singleton instance injected into two services. Spring creates and manages
+  these beans when the application context starts; constructing one with
+  `new` would bypass container injection and Spring proxies.
+- The default `dev` profile logs Hibernate SQL and bound parameters. `prod`
+  suppresses detailed SQL logs. Never enable bound-parameter logging for
+  production data.
+- Spring AOP logs the execution time of public REST controller methods in
+  milliseconds, including whether they returned or threw an exception. This
+  measures controller method execution, not authentication, request parsing,
+  response serialization, or the full HTTP request. Arguments, headers, tokens,
+  response bodies, and exception details are not logged by the timing aspect.
+- Authenticated ADMIN `GET /api/categories` uses Redis cache. Creating,
+  updating or deleting a category updates or invalidates its cache entries.
+- Authenticated `GET /api/tasks?userId=<your-user-id>&size=1` returns a cursor
+  page. Pass the returned `nextCursor` as `cursor` to request the next page. `V4` adds the
+  `(user_id, id DESC)` index used by this query pattern.
+- CORS origins come from `CORS_ALLOWED_ORIGINS`; the default local origins are
+  `http://localhost:3000` and `http://localhost:5173`.
+
+For integration tests, use a **separate, disposable PostgreSQL database** and
+set `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`,
+`POSTGRES_PASSWORD` and `RUN_DATABASE_TESTS=true`, then run `mvn test`. Flyway
+creates the schema and seed data. Without `RUN_DATABASE_TESTS=true`, database
+tests are skipped; unit and MVC tests still run.
+
+GitHub Actions runs `mvn verify` on every push and pull request with disposable
+PostgreSQL and Redis services and all integration tests enabled.
 
 ```bash
 RUN_DATABASE_TESTS=true mvn test
 ```
+
+In PowerShell, set `$env:RUN_DATABASE_TESTS='true'` and the PostgreSQL
+environment variables before running `mvn test`.
 
 These tests verify JPA persistence and timestamps, category/project deletion,
 owner deletion restrictions, status validation, email uniqueness and HTTP CRUD
@@ -264,7 +313,7 @@ Registration always creates USER; client-supplied roles cannot grant ADMIN.
 USER can list/read/update/delete only owned Tasks and Projects; creating or
 updating with another `userId`, changing ownership, or linking another user's
 Project returns 403. ADMIN can manage all Tasks and Projects. User/category
-routes are reserved for ADMIN, but their CRUD endpoints are not implemented.
+routes require ADMIN; category CRUD is implemented, user CRUD is not.
 
 To provision an ADMIN for local learning, first register your own account, then
 promote that specific account through a trusted DB connection:

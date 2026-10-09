@@ -1,5 +1,7 @@
 package com.taskmanagement.service;
 
+import com.taskmanagement.dto.CursorPage;
+import com.taskmanagement.dto.TaskSummaryResponse;
 import com.taskmanagement.dto.TaskRequest;
 import com.taskmanagement.dto.TaskResponse;
 import com.taskmanagement.entity.Task;
@@ -12,6 +14,7 @@ import com.taskmanagement.repository.TaskRepository;
 import com.taskmanagement.repository.UserRepository;
 import com.taskmanagement.security.CurrentUser;
 import java.util.List;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(readOnly = true)
 public class TaskService {
+    private static final int DEFAULT_PAGE_SIZE = 20;
+    private static final int MAX_PAGE_SIZE = 100;
+
     private final TaskRepository tasks;
     private final CurrentUser currentUser;
     private final UserRepository users;
@@ -32,6 +38,20 @@ public class TaskService {
         this.users = users;
         this.categories = categories;
         this.projects = projects;
+    }
+
+    public CursorPage<TaskSummaryResponse> listByUser(Long userId, Long cursor, Integer requestedSize) {
+        currentUser.requireOwner(userId);
+        int pageSize = requestedSize == null ? DEFAULT_PAGE_SIZE : Math.min(requestedSize, MAX_PAGE_SIZE);
+        PageRequest limit = PageRequest.of(0, pageSize + 1);
+        List<Task> rows = cursor == null
+                ? tasks.findFirstPageByUserId(userId, limit)
+                : tasks.findNextPageByUserId(userId, cursor, limit);
+        boolean hasNext = rows.size() > pageSize;
+        List<Task> pageRows = hasNext ? rows.subList(0, pageSize) : rows;
+        List<TaskSummaryResponse> content = pageRows.stream().map(TaskSummaryResponse::fromEntity).toList();
+        Long nextCursor = hasNext ? pageRows.get(pageRows.size() - 1).getId() : null;
+        return new CursorPage<>(content, nextCursor, hasNext);
     }
 
     public List<TaskResponse> findAll() {

@@ -1,5 +1,7 @@
 package com.taskmanagement.controller;
 
+import com.taskmanagement.dto.CursorPage;
+import com.taskmanagement.dto.TaskSummaryResponse;
 import com.taskmanagement.dto.TaskRequest;
 import com.taskmanagement.dto.TaskResponse;
 import com.taskmanagement.service.TaskService;
@@ -20,9 +22,17 @@ public class TaskController {
         this.service = service;
     }
 
-    @GetMapping
+    @GetMapping(params = {"!userId", "!cursor", "!size"})
     public List<TaskResponse> findAll() {
         return service.findAll();
+    }
+
+    @GetMapping(params = "userId")
+    public CursorPage<TaskSummaryResponse> listByUser(
+            @RequestParam @Positive Long userId,
+            @RequestParam(required = false) @Positive Long cursor,
+            @RequestParam(required = false) @Positive Integer size) {
+        return service.listByUser(userId, cursor, size);
     }
 
     @GetMapping("/{id}")
