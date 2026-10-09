@@ -109,4 +109,13 @@ class CrudControllerTest {
         mvc.perform(get("/api/projects/abc")).andExpect(status().isBadRequest());
         verifyNoInteractions(tasks, projects);
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "bad key", "key/with/slash"})
+    void rejectsInvalidIdempotencyKey(String key) throws Exception {
+        mvc.perform(post("/api/tasks").header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"Task\",\"userId\":1}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors").isMap());
+        verifyNoInteractions(tasks);
+    }
 }

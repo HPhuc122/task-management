@@ -29,7 +29,8 @@ class OwnershipServiceTest {
     private final UserRepository users = mock(UserRepository.class);
     private final CategoryRepository categories = mock(CategoryRepository.class);
     private final CurrentUser current = new CurrentUser();
-    private final TaskService taskService = new TaskService(tasks, users, categories, projects, current);
+    private final TaskService taskService = new TaskService(tasks, users, categories, projects, current,
+            mock(com.taskmanagement.notification.NotificationOutbox.class), mock(TaskIdempotencyService.class));
     private final ProjectService projectService = new ProjectService(projects, users, current);
 
     @BeforeEach

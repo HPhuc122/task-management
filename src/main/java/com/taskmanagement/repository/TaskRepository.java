@@ -16,5 +16,6 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     @Query("SELECT t FROM Task t WHERE t.user.id = :userId AND t.id < :cursor ORDER BY t.id DESC")
     List<Task> findNextPageByUserId(@Param("userId") Long userId,
             @Param("cursor") Long cursor, Pageable pageable);
+
     List<Task> findAllByUserId(Long userId, Sort sort);
 }
