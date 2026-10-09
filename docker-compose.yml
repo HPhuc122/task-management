@@ -17,6 +17,18 @@ services:
       JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-1h}
       DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:-}
       DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-}
+      NOTIFICATIONS_ENABLED: ${NOTIFICATIONS_ENABLED:-true}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER:-task_app}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-local-rabbit-password}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_AUTH: ${SMTP_AUTH:-false}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
+      MAIL_FROM: ${MAIL_FROM:-notifications@taskmanagement.local}
     ports:
       - "127.0.0.1:${APP_PORT:-8080}:8080"
     depends_on:
@@ -24,6 +36,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
 
   postgres:
     image: postgres:17
@@ -66,6 +82,30 @@ services:
       timeout: 5s
       retries: 5
 
+  rabbitmq:
+    image: rabbitmq:4.1-management
+    hostname: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-task_app}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-local-rabbit-password}
+    ports:
+      - "127.0.0.1:${RABBITMQ_PORT:-5672}:5672"
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "127.0.0.1:${SMTP_LOCAL_PORT:-1025}:1025"
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
+
 volumes:
   postgres_data:
   redis_data:
+  rabbitmq_data:

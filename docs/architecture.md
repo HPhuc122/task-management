@@ -210,3 +210,35 @@ GET danh sách trả mảng theo id tăng dần; phân trang/lọc chưa thuộc
   MVC và Security: 400 input, 401 authentication, 403 authorization, 404 missing,
   409 conflict, 500 unexpected. Validation thêm `errors` theo field/parameter;
   lỗi không trả SQL, stack trace, password hay chi tiết token.
+
+## 3.9. RabbitMQ email notification và idempotency
+
+Theo yêu cầu mở rộng, tạo Task phát notification email cho user được giao task.
+Chưa gửi mail cho update/delete, Project hoặc Category.
+
+- `POST /api/tasks` nhận header tùy chọn `Idempotency-Key` (1–128 ký tự ASCII
+  chữ/số, dấu chấm, gạch dưới, gạch ngang). Client dùng cùng key khi retry cùng
+  request. Key có phạm vi theo authenticated user + thao tác tạo Task.
+- PostgreSQL giữ unique key, SHA-256 của request DTO và response ban đầu. Cùng
+  key/body trả lại 201 với cùng body/id/Location; khác body trả 409. Khóa DB xử lý
+  cả request đồng thời và nhiều app instance. Không có key vẫn tạo mới như cũ.
+  JSON đổi thứ tự field không ảnh hưởng; giá trị DTO khác nhau được coi là khác.
+  Replay kiểm tra quyền sở hữu hiện tại; task đã xóa trả 404. Key không tự hết hạn.
+- Task, idempotency record và notification outbox được commit/rollback cùng nhau.
+  Không gọi broker hoặc SMTP trong transaction HTTP. Outbox lưu snapshot email,
+  task ID/title và event UUID; RabbitMQ chỉ mang UUID, không mang thông tin user.
+- Worker lấy từng outbox bằng `FOR UPDATE SKIP LOCKED`, publish persistent message
+  với mandatory routing + publisher confirm. Chỉ đánh dấu published sau ACK và
+  không bị return; timeout/NACK/lỗi được retry với backoff, tối đa 5 phút/lần.
+- Consumer khóa outbox row, bỏ qua event đã `sent_at`, gửi SMTP rồi ghi `sent_at`
+  trước khi ACK. Nhiều consumer/redelivery không gửi lại event đã commit.
+  SMTP không có transaction chung với DB: crash sau SMTP acceptance nhưng trước
+  DB commit vẫn có thể gửi trùng. Không hứa exactly-once email; cần provider có
+  idempotency API nếu yêu cầu đảm bảo đó.
+- Consumer retry tối đa 3 lần, sau đó reject không requeue để vào DLQ. Quorum
+  queue sử dụng dead-letter strategy at-least-once. Replay DLQ giữ nguyên UUID.
+- `NOTIFICATIONS_ENABLED=false` mặc định khi chạy Maven; outbox vẫn ghi và chờ
+  được xử lý khi bật. Docker Compose bật notification, RabbitMQ và Mailpit local
+  để xem mail, không gửi ra Internet. SMTP thật cấu hình qua biến môi trường.
+- Migration V5 bổ sung hai bảng hạ tầng; không thay đổi V1–V4. Outbox và key được
+  giữ lâu dài; chưa có cleanup tự động vì xóa sẽ làm mất khả năng deduplicate.

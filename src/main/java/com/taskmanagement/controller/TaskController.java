@@ -7,6 +7,7 @@ import com.taskmanagement.dto.TaskResponse;
 import com.taskmanagement.service.TaskService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Pattern;
 import java.net.URI;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
@@ -41,8 +42,11 @@ public class TaskController {
     }
 
     @PostMapping
-    public ResponseEntity<TaskResponse> create(@Valid @RequestBody TaskRequest request) {
-        TaskResponse response = service.create(request);
+    public ResponseEntity<TaskResponse> create(@Valid @RequestBody TaskRequest request,
+            @RequestHeader(name = "Idempotency-Key", required = false)
+            @Pattern(regexp = "[A-Za-z0-9._-]{1,128}") String idempotencyKey) {
+        TaskResponse response = idempotencyKey == null ? service.create(request)
+                : service.create(request, idempotencyKey);
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}").buildAndExpand(response.id()).toUri();
         return ResponseEntity.created(location).body(response);

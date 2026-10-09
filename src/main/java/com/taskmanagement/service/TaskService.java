@@ -13,6 +13,7 @@ import com.taskmanagement.repository.ProjectRepository;
 import com.taskmanagement.repository.TaskRepository;
 import com.taskmanagement.repository.UserRepository;
 import com.taskmanagement.security.CurrentUser;
+import com.taskmanagement.notification.NotificationOutbox;
 import java.util.List;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -30,14 +31,19 @@ public class TaskService {
     private final UserRepository users;
     private final CategoryRepository categories;
     private final ProjectRepository projects;
+    private final NotificationOutbox outbox;
+    private final TaskIdempotencyService idempotency;
 
     public TaskService(TaskRepository tasks, UserRepository users,
-                       CategoryRepository categories, ProjectRepository projects, CurrentUser currentUser) {
+                       CategoryRepository categories, ProjectRepository projects, CurrentUser currentUser,
+                       NotificationOutbox outbox, TaskIdempotencyService idempotency) {
         this.tasks = tasks;
         this.currentUser = currentUser;
         this.users = users;
         this.categories = categories;
         this.projects = projects;
+        this.outbox = outbox;
+        this.idempotency = idempotency;
     }
 
     public CursorPage<TaskSummaryResponse> listByUser(Long userId, Long cursor, Integer requestedSize) {
@@ -66,9 +72,22 @@ public class TaskService {
 
     @Transactional
     public TaskResponse create(TaskRequest request) {
+        return createNew(request);
+    }
+
+    @Transactional
+    public TaskResponse create(TaskRequest request, String idempotencyKey) {
+        currentUser.requireOwner(request.userId());
+        return idempotency.execute(currentUser.id(), idempotencyKey, request,
+                () -> createNew(request), this::requireTask);
+    }
+
+    private TaskResponse createNew(TaskRequest request) {
         Task task = new Task();
         apply(task, request);
-        return TaskResponse.from(tasks.saveAndFlush(task));
+        Task saved = tasks.saveAndFlush(task);
+        outbox.taskCreated(saved);
+        return TaskResponse.from(saved);
     }
 
     @Transactional
