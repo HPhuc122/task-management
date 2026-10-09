@@ -270,6 +270,15 @@ defines API payloads, and `exception` handles errors centrally.
 
 ## 6. Authentication and authorization
 
+Interactive API documentation is available at
+`http://localhost:8080/swagger-ui/index.html`; the OpenAPI JSON is at
+`http://localhost:8080/v3/api-docs`. Both documentation endpoints are public.
+In Swagger UI, call `POST /api/auth/login` or `POST /api/auth/register`, copy
+`accessToken` from the response, then click **Authorize** and enter the token
+for protected operations. Swagger UI adds the `Bearer` prefix to the request.
+The login and registration operations do not require a token. Use the port set
+by `APP_PORT` instead of `8080` if you changed the Docker Compose default.
+
 | Method | Endpoint | Access | Success |
 | --- | --- | --- | --- |
 | POST | `/api/auth/register` | Public | 201 + token and user |
