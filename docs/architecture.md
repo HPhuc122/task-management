@@ -18,7 +18,7 @@
 
 ## 1.2. Loại project
 
-Backend REST API được xây dựng bằng **Java Spring Boot**.
+Backend REST API được xây dựng bằng **Java 21 và Spring Boot 4.0.8**.
 
 Frontend chỉ được sử dụng ở mức prototype/demo để minh họa khả năng gọi API.
 
@@ -147,9 +147,9 @@ Entity JPA đặt trong package `com.taskmanagement.entity`.
 
 - `CategoryController` chỉ nhận request/response; `CategoryService` xử lý nghiệp vụ và gọi `CategoryRepository`.
 - `TaskController` gọi `TaskService`; service lấy dữ liệu qua `TaskRepository` và trả DTO, không trả JPA entity trực tiếp.
-- Spring Cache dùng Redis cho danh sách và từng category. Service khai báo `@Cacheable`, `@CachePut`, `@CacheEvict`; `RedisCacheConfig` cấu hình nơi lưu và thời gian sống. Khi ghi category, cache liên quan được cập nhật hoặc xóa.
+- Spring Cache dùng Redis cho danh sách và từng category. Service khai báo `@Cacheable`, `@CachePut`, `@CacheEvict`; `RedisCacheConfig` cấu hình nơi lưu và thời gian sống. Khi ghi category, cache liên quan được cập nhật hoặc xóa. Cache dùng Jackson 3 để ghi/đọc DTO và có prefix `boot4::` nhằm tách dữ liệu cache theo định dạng cũ.
 - API `GET /api/tasks?userId=...&size=...&cursor=...` phân trang theo `id` giảm dần. Truy vấn trang sau dùng `user_id = ? AND id < ? ORDER BY id DESC LIMIT ?`; migration `V4` tạo index `(user_id, id DESC)`. Đọc thêm một bản ghi để xác định `hasNext`.
-- Docker Compose khởi chạy ứng dụng, PostgreSQL và Redis. Ứng dụng chờ hai dịch vụ phụ thuộc healthy trước khi khởi động.
+- Docker Compose khởi chạy ứng dụng, PostgreSQL, Redis, RabbitMQ và Mailpit. Ứng dụng chờ PostgreSQL, Redis và RabbitMQ healthy trước khi khởi động.
 
 ## 3.6. CRUD API
 

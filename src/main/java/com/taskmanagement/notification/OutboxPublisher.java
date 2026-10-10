@@ -45,7 +45,7 @@ public class OutboxPublisher {
                     .setDeliveryMode(MessageDeliveryMode.PERSISTENT).build();
             rabbit.send(NotificationConfig.EXCHANGE, NotificationConfig.ROUTING_KEY, message, correlation);
             var confirm = correlation.getFuture().get(5, TimeUnit.SECONDS);
-            if (!confirm.isAck() || correlation.getReturned() != null) {
+            if (!confirm.ack() || correlation.getReturned() != null) {
                 throw new IllegalStateException("Notification publish was not routed and confirmed");
             }
             jdbc.update("UPDATE notification_outbox SET published_at = CURRENT_TIMESTAMP WHERE event_id = ?", event.id());

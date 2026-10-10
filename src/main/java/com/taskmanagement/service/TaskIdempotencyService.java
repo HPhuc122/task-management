@@ -1,7 +1,7 @@
 package com.taskmanagement.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.taskmanagement.dto.TaskRequest;
 import com.taskmanagement.dto.TaskResponse;
 import com.taskmanagement.exception.IdempotencyConflictException;
@@ -69,7 +69,7 @@ public class TaskIdempotencyService {
     private String json(Object value) {
         try {
             return mapper.writeValueAsString(value);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Cannot serialize idempotency data", exception);
         }
     }
@@ -77,7 +77,7 @@ public class TaskIdempotencyService {
     private TaskResponse readResponse(String json) {
         try {
             return mapper.readValue(json, TaskResponse.class);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Cannot read idempotency response", exception);
         }
     }
