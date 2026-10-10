@@ -1,6 +1,6 @@
 # Task Management API
 
-A simple REST API built with Java and Spring Boot.
+A simple REST API built with Java 21 and Spring Boot 4.0.8.
 
 This project is primarily created as a learning project to understand
 Java OOP, Spring Boot, backend architecture, database access,
@@ -112,21 +112,24 @@ Docker Desktop with Compose is required. Create a local `.env` from
 `Copy-Item .env.example .env` in PowerShell), then run from the project root:
 
 ```bash
+cp .env.example .env
+# Generate a key, then set JWT_SECRET in .env to the output.
+openssl rand -base64 32
 docker compose up --build -d
 ```
 
-This builds and starts the Spring Boot API, PostgreSQL and Redis. The API is at
+This builds and starts the Spring Boot API, PostgreSQL, Redis, RabbitMQ and Mailpit. The API is at
 `http://localhost:8080` by default; set `APP_PORT` in `.env` to change the host
 port. `docker compose ps` shows container health and `docker compose logs app`
-shows application output. PostgreSQL and Redis publish their ports only on the
-local machine. Keep `.env` private and use a unique database password outside
-local development. The example JWT key is public and intended only for local/demo;
-replace `JWT_SECRET` with a private Base64 key of at least 32 random bytes before
-any nonlocal deployment. A missing or invalid key prevents startup. Changing the
+shows application output. Published database, cache, broker and Mailpit ports
+are bound to the local machine. Keep `.env` private and use a unique database password. Set
+`JWT_SECRET` to a private Base64 key of at least 32 random bytes before startup.
+A missing or invalid key prevents startup. Changing the
 key invalidates existing tokens. `JWT_ACCESS_TOKEN_TTL` defaults to `1h`.
 
-Flyway applies `V1` (schema), `V2` (demo data), `V3` (pagination indexes) and
-`V4` (projects) before Hibernate validates the mappings. The current `V2`
+Flyway applies `V1` (schema), `V2` (demo data), `V3` (projects),
+`V4` (pagination/cache indexes) and `V5` (idempotency/notification outbox)
+before Hibernate validates the mappings. The current `V2`
 migration inserts sample users, categories and tasks in every environment.
 Its password hashes are placeholders. Only the `demo` profile (without `prod`) activates two
 seeded accounts with BCrypt hashes and passwords from `DEMO_USER_PASSWORD` and
@@ -136,7 +139,21 @@ demo run. Do not reuse the demo database, passwords or JWT key in production.
 Never edit a migration already applied to a database. See
 `docs/architecture.md` for relationships and deletion rules.
 
-`docker compose down` preserves database and Redis volumes. Running
+Older local databases created from the previous `phuc` branch applied `V3`
+for pagination and `V4` for projects. The current `main` migration order is
+`V3` projects, `V4` pagination; Flyway will reject those older databases.
+To keep the old volumes untouched and start this version with new volumes,
+stop the old Compose project and use a new project name:
+
+```bash
+docker compose down
+docker compose -p task-management-boot4 up --build -d
+```
+
+The new project starts with a fresh database and Redis/RabbitMQ volumes.
+Do not use `docker compose down -v` for the old project if its data matters.
+
+`docker compose down` preserves database, Redis and RabbitMQ volumes. Running
 `docker compose down -v` deletes those volumes and their data.
 
 ## 4. Local test accounts and implemented features
@@ -178,7 +195,7 @@ use a fresh local database or restore the expected credentials.
 - Authenticated ADMIN `GET /api/categories` uses Redis cache. Creating,
   updating or deleting a category updates or invalidates its cache entries.
 - Authenticated `GET /api/tasks?userId=<your-user-id>&size=1` returns a cursor
-  page. Pass the returned `nextCursor` as `cursor` to request the next page. `V3` adds the
+  page. Pass the returned `nextCursor` as `cursor` to request the next page. `V4` adds the
   `(user_id, id DESC)` index used by this query pattern.
 - CORS origins come from `CORS_ALLOWED_ORIGINS`; the default local origins are
   `http://localhost:3000` and `http://localhost:5173`.
@@ -268,6 +285,15 @@ defines API payloads, and `exception` handles errors centrally.
 
 ## 6. Authentication and authorization
 
+Interactive API documentation is available at
+`http://localhost:8080/swagger-ui/index.html`; the OpenAPI JSON is at
+`http://localhost:8080/v3/api-docs`. Both documentation endpoints are public.
+In Swagger UI, call `POST /api/auth/login` or `POST /api/auth/register`, copy
+`accessToken` from the response, then click **Authorize** and enter the token
+for protected operations. Swagger UI adds the `Bearer` prefix to the request.
+The login and registration operations do not require a token. Use the port set
+by `APP_PORT` instead of `8080` if you changed the Docker Compose default.
+
 | Method | Endpoint | Access | Success |
 | --- | --- | --- | --- |
 | POST | `/api/auth/register` | Public | 201 + token and user |
@@ -348,4 +374,127 @@ Errors use `application/problem+json`, for example:
 
 Request DTOs and positive path IDs are validated before the service runs.
 Responses never expose passwords, SQL errors or stack traces. Implementations
-follow [Spring Security's JWT Resource Server support](https://docs.spring.io/spring-security/reference/6.5/servlet/oauth2/resource-server/jwt.html).
+follow [Spring Security's JWT Resource Server support](https://docs.spring.io/spring-security/reference/7.0/servlet/oauth2/resource-server/jwt.html).
+
+## 7. RabbitMQ email notifications and idempotency
+
+Creating a Task now queues an email to its owner's email address. The HTTP
+request only writes PostgreSQL; it does not wait for RabbitMQ or SMTP. Task
+updates/deletes and Project/Category operations do not send email in this scope.
+
+```text
+POST /api/tasks + Idempotency-Key
+  -> one DB transaction: key + Task + notification_outbox
+  -> outbox worker -> RabbitMQ -> email consumer -> SMTP (Mailpit locally)
+```
+
+Start the local stack after setting `JWT_SECRET` in your existing `.env`:
+
+```bash
+docker compose up --build -d
+```
+
+Compose enables notifications and starts RabbitMQ and Mailpit in addition to
+PostgreSQL/Redis/API. Mailpit captures mail locally; no mail is delivered to real
+inboxes. Open `http://localhost:8025` to read mail. RabbitMQ management is at
+`http://localhost:15672` (local defaults: `task_app` / `local-rabbit-password`).
+Use private broker credentials outside development. RabbitMQ data has a named
+volume and stable hostname so durable queues survive container recreation;
+`docker compose down -v` deletes this data. Mailpit messages are temporary.
+
+To run the API with Maven, start infrastructure only and use localhost hosts:
+
+```bash
+docker compose up -d postgres redis rabbitmq mailpit
+set -a
+source .env
+set +a
+export NOTIFICATIONS_ENABLED=true
+export RABBITMQ_PASSWORD="${RABBITMQ_PASSWORD:-local-rabbit-password}"
+export RABBITMQ_HOST=localhost SMTP_HOST=localhost SMTP_PORT=1025
+mvn spring-boot:run
+```
+
+Stop any existing API on port 8080 before starting another instance.
+`NOTIFICATIONS_ENABLED` defaults to false for Maven and true in Compose.
+When disabled, Task creation still records outbox events; enabling notifications
+later sends that backlog. For a real SMTP server set `SMTP_HOST`, `SMTP_PORT`,
+`SMTP_USER`, `SMTP_PASSWORD`, `SMTP_AUTH=true`, `SMTP_STARTTLS=true` and `MAIL_FROM`.
+Connection/read/write timeouts are 5 seconds. SMTP acceptance means the server
+accepted the message, not that the recipient has read or received it in an inbox.
+
+### Prevent duplicate Task creation
+
+Obtain `TOKEN` and `USER_ID` using section 6, then run this request twice:
+
+```bash
+curl -i -X POST http://localhost:8080/api/tasks \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: task-demo-001' \
+  -d "{\"title\":\"Test RabbitMQ mail\",\"userId\":$USER_ID}"
+```
+
+Both calls return `201` with the original response body, task ID and Location;
+only one Task and one email event are created, even for concurrent requests.
+Changing the title with the same key returns `409` ProblemDetail. Use a new key
+for a new logical operation. Without a key every POST creates a new Task.
+
+Keys allow 1–128 ASCII letters/digits, `.`, `_`, `-`; invalid keys return 400.
+Scope is authenticated actor + CREATE_TASK. Identical keys from different users
+do not collide. The request hash is based on parsed DTO fields, so JSON field
+order does not matter; changing a field value (including null versus an explicit
+default) conflicts. Replay rechecks current ownership and returns 403 after a
+transfer to another owner, or 404 after deletion. Stored responses are snapshots,
+so later edits do not change a replayed creation response. Failed/rolled-back
+requests do not reserve a key. Keys do not expire automatically.
+
+### Reliability and failed messages
+
+Migration `V5` adds `api_idempotency` and `notification_outbox`. Key claims use
+PostgreSQL uniqueness, not in-memory locks. Key, Task and outbox writes share one
+transaction, including rollback. Outbox rows intentionally retain snapshots after
+Task/user deletion. Delivery uses the owner email captured when the Task was created.
+
+The publisher locks pending rows with `FOR UPDATE SKIP LOCKED` and publishes a
+persistent UUID message. Publisher confirms and mandatory returns must indicate
+success before setting `published_at`. Failure retries with exponential backoff
+from 2 seconds to 5 minutes, without a retry limit. Broker outages do not lose
+committed events. Each poll handles at most 20 events (default delay 2 seconds).
+
+Queue `task.notifications.email` is durable/quorum. The consumer locks the event
+row, sends mail, records `sent_at`, and then ACKs. Redelivery of a committed event
+is a no-op. SMTP failures leave `sent_at` empty and get up to 3 attempts before
+dead-lettering into `task.notifications.email.dlq`. Both queues are declared by
+the application when notifications are enabled. Dead-lettering uses RabbitMQ's
+at-least-once quorum strategy.
+
+After fixing SMTP configuration, republish a DLQ message to exchange
+`task.notifications`, routing key `task.created`, preserving its original UUID
+body. Do not invent a new UUID: deduplication uses the event ID. Use the RabbitMQ
+management UI to inspect the DLQ. A repaired message whose `sent_at` is already
+set will be acknowledged without sending again.
+
+**Limit:** SMTP and PostgreSQL cannot commit atomically. If the process stops
+after SMTP accepts mail but before `sent_at` commits, retry may send a duplicate.
+This is at-least-once processing with deduplication, not exactly-once email.
+Exactly-once delivery requires a mail provider offering its own idempotency key.
+No automatic key/outbox cleanup is implemented; removing records removes their
+deduplication history. Monitor unsent events, publishing attempts and the DLQ.
+
+### Automated tests
+
+- `mvn test`: unit/MVC tests without infrastructure.
+- `RUN_DATABASE_TESTS=true mvn test`: also tests concurrent HTTP retries,
+  cross-actor key scope, rollback, concurrent consumers and broker/SMTP failures
+  on a disposable PostgreSQL database. Broker and SMTP are mocked for these cases.
+- `RUN_DATABASE_TESTS=true RUN_NOTIFICATION_TESTS=true mvn clean verify`: also
+  checks the real HTTP -> outbox -> RabbitMQ -> SMTP flow, reads the email from
+  Mailpit, verifies duplicate delivery, and tests DLQ replay. Configure disposable
+  PostgreSQL, a dedicated RabbitMQ vhost (`RABBITMQ_VHOST`) and local Mailpit first.
+  This test purges its notification queues; never point it at production or a
+  shared application vhost. `MAILPIT_API` defaults to `http://localhost:8025`.
+
+GitHub Actions provisions disposable PostgreSQL, Redis, RabbitMQ and Mailpit and
+runs all of these tests. See [Spring AMQP publisher confirms and returns](https://docs.spring.io/spring-amqp/reference/amqp/template.html)
+and [Mailpit's local SMTP behavior](https://mailpit.axllent.org/docs/usage/sending-messages/).

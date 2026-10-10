@@ -1,13 +1,17 @@
 package com.taskmanagement;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import com.taskmanagement.dto.CategoryResponse;
 import com.taskmanagement.security.SecurityTestConfig;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
@@ -31,6 +35,23 @@ class FeatureIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired ObjectMapper objectMapper;
+    @Autowired CacheManager cacheManager;
+
+    @Test
+    void categoryCacheRoundTripsRecordAndList() {
+        Cache cache = cacheManager.getCache("categories");
+        String key = "upgrade-" + UUID.randomUUID();
+        CategoryResponse category = new CategoryResponse(42L, "Work", "Example");
+        try {
+            cache.put(key, category);
+            cache.put(key + "-list", List.of(category));
+            assertEquals(category, cache.get(key).get());
+            assertEquals(List.of(category), cache.get(key + "-list").get());
+        } finally {
+            cache.evict(key);
+            cache.evict(key + "-list");
+        }
+    }
 
     @Test
     @Transactional

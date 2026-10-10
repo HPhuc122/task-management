@@ -25,6 +25,24 @@ jobs:
         image: redis:7-alpine
         ports:
           - 6379:6379
+      rabbitmq:
+        image: rabbitmq:4.1-management
+        env:
+          RABBITMQ_DEFAULT_USER: task_test
+          RABBITMQ_DEFAULT_PASS: rabbit_test_only
+          RABBITMQ_DEFAULT_VHOST: notifications_ci
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      mailpit:
+        image: axllent/mailpit:v1.27
+        ports:
+          - 1025:1025
+          - 8025:8025
     env:
       POSTGRES_HOST: localhost
       POSTGRES_PORT: 5432
@@ -32,6 +50,16 @@ jobs:
       POSTGRES_USER: test_user
       POSTGRES_PASSWORD: test_password_only
       RUN_DATABASE_TESTS: 'true'
+      RUN_NOTIFICATION_TESTS: 'true'
+      NOTIFICATIONS_ENABLED: 'false'
+      RABBITMQ_HOST: localhost
+      RABBITMQ_USER: task_test
+      RABBITMQ_PASSWORD: rabbit_test_only
+      RABBITMQ_VHOST: notifications_ci
+      SMTP_HOST: localhost
+      SMTP_PORT: 1025
+      SMTP_AUTH: 'false'
+      SMTP_STARTTLS: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4

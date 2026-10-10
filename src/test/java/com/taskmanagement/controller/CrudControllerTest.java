@@ -12,7 +12,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -108,5 +108,14 @@ class CrudControllerTest {
         mvc.perform(get("/api/tasks/abc")).andExpect(status().isBadRequest());
         mvc.perform(get("/api/projects/abc")).andExpect(status().isBadRequest());
         verifyNoInteractions(tasks, projects);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "bad key", "key/with/slash"})
+    void rejectsInvalidIdempotencyKey(String key) throws Exception {
+        mvc.perform(post("/api/tasks").header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"Task\",\"userId\":1}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors").isMap());
+        verifyNoInteractions(tasks);
     }
 }

@@ -18,7 +18,7 @@
 
 ## 1.2. Loại project
 
-Backend REST API được xây dựng bằng **Java Spring Boot**.
+Backend REST API được xây dựng bằng **Java 21 và Spring Boot 4.0.8**.
 
 Frontend chỉ được sử dụng ở mức prototype/demo để minh họa khả năng gọi API.
 
@@ -147,9 +147,9 @@ Entity JPA đặt trong package `com.taskmanagement.entity`.
 
 - `CategoryController` chỉ nhận request/response; `CategoryService` xử lý nghiệp vụ và gọi `CategoryRepository`.
 - `TaskController` gọi `TaskService`; service lấy dữ liệu qua `TaskRepository` và trả DTO, không trả JPA entity trực tiếp.
-- Spring Cache dùng Redis cho danh sách và từng category. Service khai báo `@Cacheable`, `@CachePut`, `@CacheEvict`; `RedisCacheConfig` cấu hình nơi lưu và thời gian sống. Khi ghi category, cache liên quan được cập nhật hoặc xóa.
-- API `GET /api/tasks?userId=...&size=...&cursor=...` phân trang theo `id` giảm dần. Truy vấn trang sau dùng `user_id = ? AND id < ? ORDER BY id DESC LIMIT ?`; migration `V3` tạo index `(user_id, id DESC)`. Đọc thêm một bản ghi để xác định `hasNext`.
-- Docker Compose khởi chạy ứng dụng, PostgreSQL và Redis. Ứng dụng chờ hai dịch vụ phụ thuộc healthy trước khi khởi động.
+- Spring Cache dùng Redis cho danh sách và từng category. Service khai báo `@Cacheable`, `@CachePut`, `@CacheEvict`; `RedisCacheConfig` cấu hình nơi lưu và thời gian sống. Khi ghi category, cache liên quan được cập nhật hoặc xóa. Cache dùng Jackson 3 để ghi/đọc DTO và có prefix `boot4::` nhằm tách dữ liệu cache theo định dạng cũ.
+- API `GET /api/tasks?userId=...&size=...&cursor=...` phân trang theo `id` giảm dần. Truy vấn trang sau dùng `user_id = ? AND id < ? ORDER BY id DESC LIMIT ?`; migration `V4` tạo index `(user_id, id DESC)`. Đọc thêm một bản ghi để xác định `hasNext`.
+- Docker Compose khởi chạy ứng dụng, PostgreSQL, Redis, RabbitMQ và Mailpit. Ứng dụng chờ PostgreSQL, Redis và RabbitMQ healthy trước khi khởi động.
 
 ## 3.6. CRUD API
 
@@ -168,7 +168,7 @@ Entity JPA đặt trong package `com.taskmanagement.entity`.
 
 ## 3.7. Project
 
-Theo yêu cầu mở rộng CRUD Project, migration V4 thêm `projects` và `tasks.project_id`.
+Theo yêu cầu mở rộng CRUD Project, migration V3 thêm `projects` và `tasks.project_id`.
 Project có name (bắt buộc, tối đa 255 ký tự), description tùy chọn và user sở hữu
 bắt buộc. Một project có nhiều task; task có thể không thuộc project. Chủ sở hữu
 task và project có thể khác nhau. Không đặt ràng buộc duy nhất cho tên project.
@@ -179,6 +179,9 @@ GET danh sách trả mảng theo id tăng dần; phân trang/lọc chưa thuộc
 
 ## 3.8. Security, validation và lỗi
 
+- Swagger UI tại `/swagger-ui/index.html` và OpenAPI JSON tại `/v3/api-docs`
+  truy cập công khai để tra cứu API. Tài liệu khai báo Bearer JWT cho các API
+  cần xác thực; đăng ký và đăng nhập không yêu cầu token.
 - `POST /api/auth/register` và `POST /api/auth/login` public; `GET /api/auth/me`
   và các API khác yêu cầu `Authorization: Bearer <accessToken>`.
 - Đăng ký chỉ tạo USER, không nhận role từ client. Email giữ nguyên hoa/thường
@@ -210,3 +213,35 @@ GET danh sách trả mảng theo id tăng dần; phân trang/lọc chưa thuộc
   MVC và Security: 400 input, 401 authentication, 403 authorization, 404 missing,
   409 conflict, 500 unexpected. Validation thêm `errors` theo field/parameter;
   lỗi không trả SQL, stack trace, password hay chi tiết token.
+
+## 3.9. RabbitMQ email notification và idempotency
+
+Theo yêu cầu mở rộng, tạo Task phát notification email cho user được giao task.
+Chưa gửi mail cho update/delete, Project hoặc Category.
+
+- `POST /api/tasks` nhận header tùy chọn `Idempotency-Key` (1–128 ký tự ASCII
+  chữ/số, dấu chấm, gạch dưới, gạch ngang). Client dùng cùng key khi retry cùng
+  request. Key có phạm vi theo authenticated user + thao tác tạo Task.
+- PostgreSQL giữ unique key, SHA-256 của request DTO và response ban đầu. Cùng
+  key/body trả lại 201 với cùng body/id/Location; khác body trả 409. Khóa DB xử lý
+  cả request đồng thời và nhiều app instance. Không có key vẫn tạo mới như cũ.
+  JSON đổi thứ tự field không ảnh hưởng; giá trị DTO khác nhau được coi là khác.
+  Replay kiểm tra quyền sở hữu hiện tại; task đã xóa trả 404. Key không tự hết hạn.
+- Task, idempotency record và notification outbox được commit/rollback cùng nhau.
+  Không gọi broker hoặc SMTP trong transaction HTTP. Outbox lưu snapshot email,
+  task ID/title và event UUID; RabbitMQ chỉ mang UUID, không mang thông tin user.
+- Worker lấy từng outbox bằng `FOR UPDATE SKIP LOCKED`, publish persistent message
+  với mandatory routing + publisher confirm. Chỉ đánh dấu published sau ACK và
+  không bị return; timeout/NACK/lỗi được retry với backoff, tối đa 5 phút/lần.
+- Consumer khóa outbox row, bỏ qua event đã `sent_at`, gửi SMTP rồi ghi `sent_at`
+  trước khi ACK. Nhiều consumer/redelivery không gửi lại event đã commit.
+  SMTP không có transaction chung với DB: crash sau SMTP acceptance nhưng trước
+  DB commit vẫn có thể gửi trùng. Không hứa exactly-once email; cần provider có
+  idempotency API nếu yêu cầu đảm bảo đó.
+- Consumer retry tối đa 3 lần, sau đó reject không requeue để vào DLQ. Quorum
+  queue sử dụng dead-letter strategy at-least-once. Replay DLQ giữ nguyên UUID.
+- `NOTIFICATIONS_ENABLED=false` mặc định khi chạy Maven; outbox vẫn ghi và chờ
+  được xử lý khi bật. Docker Compose bật notification, RabbitMQ và Mailpit local
+  để xem mail, không gửi ra Internet. SMTP thật cấu hình qua biến môi trường.
+- Migration V5 bổ sung hai bảng hạ tầng; không thay đổi V1–V4. Outbox và key được
+  giữ lâu dài; chưa có cleanup tự động vì xóa sẽ làm mất khả năng deduplicate.
