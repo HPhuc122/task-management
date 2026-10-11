@@ -1,8 +1,9 @@
 // File: src/main/java/com/taskmanagement/config/RedisCacheConfig.java
 package com.taskmanagement.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.taskmanagement.dto.CategoryResponse;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
@@ -10,9 +11,14 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
+import org.springframework.data.redis.serializer.RedisSerializer;
+import org.springframework.data.redis.serializer.SerializationException;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Cấu hình Redis làm cache provider cho Spring Cache Abstraction
@@ -37,28 +43,13 @@ public class RedisCacheConfig {
 
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory,
-            ObjectMapper springObjectMapper) {
-
-        // Dùng lại chính ObjectMapper Spring Boot đã auto-config cho JSON
-        // (đã có sẵn module đọc/ghi Instant, LocalDate...), rồi bật
-        // "default typing" trên MỘT BẢN SAO của nó để Jackson ghi kèm
-        // thông tin class (@class) vào JSON lưu trong Redis.
-        //
-        // Bắt buộc phải dùng DefaultTyping.EVERYTHING (không phải
-        // NON_FINAL như hay thấy trong tài liệu cũ): các DTO trả về
-        // (CategoryResponse...) là Java record, mà record luôn là lớp
-        // "final". NON_FINAL sẽ bỏ qua không ghi type cho mọi record, và
-        // lúc đọc lại từ cache, Spring sẽ không biết phải deserialize về
-        // class nào, dẫn tới ClassCastException ngay khi cache hit.
-        ObjectMapper redisObjectMapper = springObjectMapper.copy();
-        redisObjectMapper.activateDefaultTyping(
-                redisObjectMapper.getPolymorphicTypeValidator(),
-                ObjectMapper.DefaultTyping.EVERYTHING);
-
-        GenericJackson2JsonRedisSerializer jsonSerializer = new GenericJackson2JsonRedisSerializer(redisObjectMapper);
+            JsonMapper mapper) {
+        RedisSerializer<Object> jsonSerializer = new CategoryCacheSerializer(mapper);
 
         RedisCacheConfiguration defaultConfig = RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(DEFAULT_TTL)
+                // Keep old Jackson 2 cache entries separate during the upgrade.
+                .computePrefixWith(cacheName -> "boot4::" + cacheName + "::")
                 // Không cache giá trị null: tránh tình huống một id không
                 // tồn tại bị "cache lại sự vắng mặt", khiến sau khi tạo
                 // mới đúng id đó, client vẫn nhận null thêm một khoảng TTL.
@@ -76,5 +67,41 @@ public class RedisCacheConfig {
                 .cacheDefaults(defaultConfig)
                 .withInitialCacheConfigurations(perCacheOverrides)
                 .build();
+    }
+
+    /** The only cached values are a category DTO or a list of category DTOs. */
+    private static final class CategoryCacheSerializer implements RedisSerializer<Object> {
+        private static final TypeReference<List<CategoryResponse>> LIST_TYPE = new TypeReference<>() {};
+        private final JsonMapper mapper;
+
+        private CategoryCacheSerializer(JsonMapper mapper) {
+            this.mapper = mapper;
+        }
+
+        @Override
+        public byte[] serialize(Object value) throws SerializationException {
+            if (value == null) return new byte[0];
+            if (!(value instanceof CategoryResponse)
+                    && !(value instanceof List<?> list && list.stream().allMatch(CategoryResponse.class::isInstance))) {
+                throw new SerializationException("Unexpected category cache value type");
+            }
+            try {
+                return mapper.writeValueAsBytes(value);
+            } catch (JacksonException exception) {
+                throw new SerializationException("Cannot serialize category cache value", exception);
+            }
+        }
+
+        @Override
+        public Object deserialize(byte[] source) throws SerializationException {
+            if (source == null || source.length == 0) return null;
+            try {
+                JsonNode value = mapper.readTree(source);
+                return value.isArray() ? mapper.readValue(source, LIST_TYPE)
+                        : mapper.readValue(source, CategoryResponse.class);
+            } catch (JacksonException exception) {
+                throw new SerializationException("Cannot deserialize category cache value", exception);
+            }
+        }
     }
 }

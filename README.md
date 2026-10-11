@@ -1,6 +1,6 @@
 # Task Management API
 
-A simple REST API built with Java and Spring Boot.
+A simple REST API built with Java 21 and Spring Boot 4.0.8.
 
 This project is primarily created as a learning project to understand
 Java OOP, Spring Boot, backend architecture, database access,
@@ -118,17 +118,18 @@ openssl rand -base64 32
 docker compose up --build -d
 ```
 
-This builds and starts the Spring Boot API, PostgreSQL and Redis. The API is at
+This builds and starts the Spring Boot API, PostgreSQL, Redis, RabbitMQ and Mailpit. The API is at
 `http://localhost:8080` by default; set `APP_PORT` in `.env` to change the host
 port. `docker compose ps` shows container health and `docker compose logs app`
-shows application output. PostgreSQL and Redis publish their ports only on the
-local machine. Keep `.env` private and use a unique database password. Set
+shows application output. Published database, cache, broker and Mailpit ports
+are bound to the local machine. Keep `.env` private and use a unique database password. Set
 `JWT_SECRET` to a private Base64 key of at least 32 random bytes before startup.
 A missing or invalid key prevents startup. Changing the
 key invalidates existing tokens. `JWT_ACCESS_TOKEN_TTL` defaults to `1h`.
 
-Flyway applies `V1` (schema), `V2` (demo data), `V3` (projects) and
-`V4` (pagination/cache indexes) before Hibernate validates the mappings. The current `V2`
+Flyway applies `V1` (schema), `V2` (demo data), `V3` (projects),
+`V4` (pagination/cache indexes) and `V5` (idempotency/notification outbox)
+before Hibernate validates the mappings. The current `V2`
 migration inserts sample users, categories and tasks in every environment.
 Its password hashes are placeholders. Only the `demo` profile (without `prod`) activates two
 seeded accounts with BCrypt hashes and passwords from `DEMO_USER_PASSWORD` and
@@ -138,7 +139,21 @@ demo run. Do not reuse the demo database, passwords or JWT key in production.
 Never edit a migration already applied to a database. See
 `docs/architecture.md` for relationships and deletion rules.
 
-`docker compose down` preserves database and Redis volumes. Running
+Older local databases created from the previous `phuc` branch applied `V3`
+for pagination and `V4` for projects. The current `main` migration order is
+`V3` projects, `V4` pagination; Flyway will reject those older databases.
+To keep the old volumes untouched and start this version with new volumes,
+stop the old Compose project and use a new project name:
+
+```bash
+docker compose down
+docker compose -p task-management-boot4 up --build -d
+```
+
+The new project starts with a fresh database and Redis/RabbitMQ volumes.
+Do not use `docker compose down -v` for the old project if its data matters.
+
+`docker compose down` preserves database, Redis and RabbitMQ volumes. Running
 `docker compose down -v` deletes those volumes and their data.
 
 ## 4. Local test accounts and implemented features
@@ -359,7 +374,7 @@ Errors use `application/problem+json`, for example:
 
 Request DTOs and positive path IDs are validated before the service runs.
 Responses never expose passwords, SQL errors or stack traces. Implementations
-follow [Spring Security's JWT Resource Server support](https://docs.spring.io/spring-security/reference/6.5/servlet/oauth2/resource-server/jwt.html).
+follow [Spring Security's JWT Resource Server support](https://docs.spring.io/spring-security/reference/7.0/servlet/oauth2/resource-server/jwt.html).
 
 ## 7. RabbitMQ email notifications and idempotency
 
