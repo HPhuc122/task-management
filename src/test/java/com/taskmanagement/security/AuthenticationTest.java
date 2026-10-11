@@ -158,8 +158,14 @@ class AuthenticationTest {
     void corsPreflightAllowsConfiguredOriginWithoutAuthentication() throws Exception {
         mvc.perform(options("/api/tasks").header("Origin", "http://localhost:3000")
                         .header("Access-Control-Request-Method", "POST")
-                        .header("Access-Control-Request-Headers", "authorization,content-type"))
-                .andExpect(status().isOk()).andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"));
+                        .header("Access-Control-Request-Headers", "authorization,content-type,idempotency-key"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"))
+                .andExpect(header().doesNotExist("Access-Control-Allow-Credentials"));
+        mvc.perform(options("/api/tasks").header("Origin", "http://localhost:3000")
+                        .header("Access-Control-Request-Method", "POST")
+                        .header("Access-Control-Request-Headers", "x-unexpected-header"))
+                .andExpect(status().isForbidden());
         mvc.perform(options("/api/tasks").header("Origin", "https://untrusted.example")
                         .header("Access-Control-Request-Method", "POST"))
                 .andExpect(status().isForbidden()).andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
