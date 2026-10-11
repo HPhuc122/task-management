@@ -66,6 +66,8 @@ public class RedisCacheConfig {
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)
                 .withInitialCacheConfigurations(perCacheOverrides)
+                // Publish cache changes only after the database transaction commits.
+                .transactionAware()
                 .build();
     }
 

@@ -1,5 +1,6 @@
 package com.taskmanagement.demo.ioc;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
@@ -7,6 +8,7 @@ import org.springframework.stereotype.Component;
 @Primary
 public class CasualGreeter implements Greeter {
     private boolean initializedBySpring;
+    private boolean destroyedBySpring;
 
     @PostConstruct
     void onSpringInitialization() {
@@ -15,6 +17,15 @@ public class CasualGreeter implements Greeter {
 
     boolean isInitializedBySpring() {
         return initializedBySpring;
+    }
+
+    @PreDestroy
+    void onSpringDestruction() {
+        destroyedBySpring = true;
+    }
+
+    boolean isDestroyedBySpring() {
+        return destroyedBySpring;
     }
 
     @Override 

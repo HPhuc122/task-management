@@ -3,7 +3,10 @@ package com.taskmanagement;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.taskmanagement.dto.CategoryResponse;
+import com.taskmanagement.dto.CategoryRequest;
 import com.taskmanagement.security.SecurityTestConfig;
+import com.taskmanagement.service.CategoryService;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -17,9 +20,14 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
@@ -36,6 +44,8 @@ class FeatureIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired ObjectMapper objectMapper;
     @Autowired CacheManager cacheManager;
+    @Autowired PlatformTransactionManager transactionManager;
+    @Autowired CategoryService categoryService;
 
     @Test
     void categoryCacheRoundTripsRecordAndList() {
@@ -50,6 +60,75 @@ class FeatureIntegrationTest {
         } finally {
             cache.evict(key);
             cache.evict(key + "-list");
+        }
+    }
+
+    @Test
+    void categoryCacheWritesAndEvictionsFollowTransactionOutcome() {
+        Cache cache = cacheManager.getCache("categories");
+        String key = "transaction-" + UUID.randomUUID();
+        CategoryResponse category = new CategoryResponse(42L, "Work", "Example");
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        try {
+            transaction.executeWithoutResult(status -> {
+                cache.put(key, category);
+                status.setRollbackOnly();
+            });
+            assertNull(cache.get(key));
+
+            transaction.executeWithoutResult(status -> cache.put(key, category));
+            await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
+                Cache.ValueWrapper cached = cache.get(key);
+                assertNotNull(cached);
+                assertEquals(category, cached.get());
+            });
+
+            transaction.executeWithoutResult(status -> {
+                cache.evict(key);
+                status.setRollbackOnly();
+            });
+            assertEquals(category, cache.get(key).get());
+
+            transaction.executeWithoutResult(status -> cache.evict(key));
+            await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
+                    assertNull(cache.get(key)));
+        } finally {
+            cache.evict(key);
+        }
+    }
+
+    @Test
+    void categoryUpdatesRefreshDetailCacheAndInvalidateListCache() {
+        Cache cache = cacheManager.getCache("categories");
+        CategoryResponse created = categoryService.create(
+                new CategoryRequest("cache-" + UUID.randomUUID(), "original"));
+        boolean deleted = false;
+        try {
+            categoryService.getAll();
+            categoryService.getById(created.id());
+            await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
+                assertNotNull(cache.get("all"));
+                assertNotNull(cache.get(created.id()));
+            });
+
+            CategoryResponse updated = categoryService.update(created.id(),
+                    new CategoryRequest(created.name(), "updated"));
+            await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
+                assertNull(cache.get("all"));
+                Cache.ValueWrapper cached = cache.get(created.id());
+                assertNotNull(cached);
+                assertEquals(updated, cached.get());
+            });
+
+            categoryService.getAll();
+            categoryService.delete(created.id());
+            deleted = true;
+            await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
+                assertNull(cache.get("all"));
+                assertNull(cache.get(created.id()));
+            });
+        } finally {
+            if (!deleted) categoryService.delete(created.id());
         }
     }
 
