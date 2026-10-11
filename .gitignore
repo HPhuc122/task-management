@@ -68,5 +68,6 @@ build/
 # ==============================
 # Spring Boot
 # ==============================
+performance/*.json
 
 spring.log
