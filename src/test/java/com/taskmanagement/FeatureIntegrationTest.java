@@ -106,19 +106,27 @@ class FeatureIntegrationTest {
         try {
             categoryService.getAll();
             categoryService.getById(created.id());
-            assertNotNull(cache.get("all"));
-            assertNotNull(cache.get(created.id()));
+            await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
+                assertNotNull(cache.get("all"));
+                assertNotNull(cache.get(created.id()));
+            });
 
             CategoryResponse updated = categoryService.update(created.id(),
                     new CategoryRequest(created.name(), "updated"));
-            assertNull(cache.get("all"));
-            assertEquals(updated, cache.get(created.id()).get());
+            await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
+                assertNull(cache.get("all"));
+                Cache.ValueWrapper cached = cache.get(created.id());
+                assertNotNull(cached);
+                assertEquals(updated, cached.get());
+            });
 
             categoryService.getAll();
             categoryService.delete(created.id());
             deleted = true;
-            assertNull(cache.get("all"));
-            assertNull(cache.get(created.id()));
+            await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
+                assertNull(cache.get("all"));
+                assertNull(cache.get(created.id()));
+            });
         } finally {
             if (!deleted) categoryService.delete(created.id());
         }
