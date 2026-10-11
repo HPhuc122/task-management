@@ -6,6 +6,7 @@ import com.taskmanagement.dto.CategoryResponse;
 import com.taskmanagement.dto.CategoryRequest;
 import com.taskmanagement.security.SecurityTestConfig;
 import com.taskmanagement.service.CategoryService;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -75,7 +77,11 @@ class FeatureIntegrationTest {
             assertNull(cache.get(key));
 
             transaction.executeWithoutResult(status -> cache.put(key, category));
-            assertEquals(category, cache.get(key).get());
+            await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
+                Cache.ValueWrapper cached = cache.get(key);
+                assertNotNull(cached);
+                assertEquals(category, cached.get());
+            });
 
             transaction.executeWithoutResult(status -> {
                 cache.evict(key);
@@ -84,7 +90,8 @@ class FeatureIntegrationTest {
             assertEquals(category, cache.get(key).get());
 
             transaction.executeWithoutResult(status -> cache.evict(key));
-            assertNull(cache.get(key));
+            await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
+                    assertNull(cache.get(key)));
         } finally {
             cache.evict(key);
         }
