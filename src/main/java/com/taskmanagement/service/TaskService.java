@@ -33,10 +33,12 @@ public class TaskService {
     private final ProjectRepository projects;
     private final NotificationOutbox outbox;
     private final TaskIdempotencyService idempotency;
+    private final TaskAttachmentService attachmentService;
 
     public TaskService(TaskRepository tasks, UserRepository users,
                        CategoryRepository categories, ProjectRepository projects, CurrentUser currentUser,
-                       NotificationOutbox outbox, TaskIdempotencyService idempotency) {
+                       NotificationOutbox outbox, TaskIdempotencyService idempotency,
+                       TaskAttachmentService attachmentService) {
         this.tasks = tasks;
         this.currentUser = currentUser;
         this.users = users;
@@ -44,6 +46,7 @@ public class TaskService {
         this.projects = projects;
         this.outbox = outbox;
         this.idempotency = idempotency;
+        this.attachmentService = attachmentService;
     }
 
     public CursorPage<TaskSummaryResponse> listByUser(Long userId, Long cursor, Integer requestedSize) {
@@ -99,7 +102,9 @@ public class TaskService {
 
     @Transactional
     public void delete(Long id) {
-        tasks.delete(requireTask(id));
+        Task task = requireTask(id);
+        attachmentService.deleteAllForTask(task);
+        tasks.delete(task);
         tasks.flush();
     }
 
