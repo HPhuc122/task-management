@@ -20,6 +20,8 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.util.unit.DataSize;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -36,6 +38,8 @@ class TaskAttachmentServiceTest {
 
     @BeforeEach
     void authenticate() {
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        TransactionSynchronizationManager.initSynchronization();
         SecurityContextHolder.getContext().setAuthentication(UsernamePasswordAuthenticationToken.authenticated(
                 "1", null, List.of(new SimpleGrantedAuthority("ROLE_USER"))));
     }
@@ -43,6 +47,7 @@ class TaskAttachmentServiceTest {
     @AfterEach
     void clearContext() {
         SecurityContextHolder.clearContext();
+        TransactionSynchronizationManager.clear();
     }
 
     @Test
@@ -84,6 +89,48 @@ class TaskAttachmentServiceTest {
         assertThrows(AccessDeniedException.class, () -> service.list(4L));
         assertThrows(AccessDeniedException.class, () -> service.download(4L, 7L));
         verifyNoInteractions(attachments, storage);
+    }
+
+    @Test
+    void uploadIsCleanedOnOuterRollbackButRetainedOnCommitOrUnknownOutcome() {
+        when(tasks.findById(3L)).thenReturn(Optional.of(taskOwnedBy(1L, 3L)));
+        when(attachments.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        for (int status : new int[]{TransactionSynchronization.STATUS_COMMITTED,
+                TransactionSynchronization.STATUS_UNKNOWN, TransactionSynchronization.STATUS_ROLLED_BACK}) {
+            service.upload(3L, new MockMultipartFile("file", "a.txt", "text/plain", new byte[]{1}));
+            var callbacks = TransactionSynchronizationManager.getSynchronizations();
+            callbacks.getLast().afterCompletion(status);
+        }
+        verify(storage, times(1)).delete(anyString());
+    }
+
+    @Test
+    void databaseFailureIsNotMaskedWhenRollbackCleanupAlsoFails() {
+        when(tasks.findById(3L)).thenReturn(Optional.of(taskOwnedBy(1L, 3L)));
+        var failure = new IllegalStateException("database failure");
+        when(attachments.saveAndFlush(any())).thenThrow(failure);
+        doThrow(new IllegalStateException("MinIO unavailable")).when(storage).delete(anyString());
+        assertSame(failure, assertThrows(IllegalStateException.class, () -> service.upload(3L,
+                new MockMultipartFile("file", "a.txt", "text/plain", new byte[]{1}))));
+        assertDoesNotThrow(() -> TransactionSynchronizationManager.getSynchronizations().getFirst()
+                .afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+        verify(storage).delete(anyString());
+    }
+
+    @Test
+    void deleteWaitsForCommitAndCleanupFailureDoesNotEscape() {
+        when(tasks.findById(3L)).thenReturn(Optional.of(taskOwnedBy(1L, 3L)));
+        TaskAttachment row = new TaskAttachment();
+        row.setObjectKey("tasks/3/object");
+        when(attachments.findByIdAndTaskId(7L, 3L)).thenReturn(Optional.of(row));
+        service.delete(3L, 7L);
+        verify(storage, never()).delete(anyString());
+        var callback = TransactionSynchronizationManager.getSynchronizations().getFirst();
+        callback.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
+        verify(storage, never()).delete(anyString());
+        doThrow(new IllegalStateException("MinIO unavailable")).when(storage).delete(anyString());
+        assertDoesNotThrow(callback::afterCommit);
+        verify(storage).delete("tasks/3/object");
     }
 
     private Task taskOwnedBy(Long ownerId, Long taskId) {

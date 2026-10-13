@@ -71,6 +71,8 @@ jobs:
       POSTGRES_USER: test_user
       POSTGRES_PASSWORD: test_password_only
       RUN_DATABASE_TESTS: 'true'
+      RUN_ATTACHMENT_TESTS: 'true'
+      S3_ENDPOINT: http://localhost:19000
       RUN_NOTIFICATION_TESTS: 'true'
       NOTIFICATIONS_ENABLED: 'false'
       RABBITMQ_HOST: localhost
@@ -88,5 +90,12 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
+      - name: Start real MinIO for attachment tests
+        run: |
+          docker run -d --name attachment-ci-minio \
+            -e MINIO_ROOT_USER=test-access-key -e MINIO_ROOT_PASSWORD=test-secret-key \
+            -p 127.0.0.1:19000:9000 cgr.dev/chainguard/minio:latest server /data
+          curl --fail --silent --show-error --retry 30 --retry-all-errors --retry-delay 2 \
+            --connect-timeout 2 --max-time 5 http://localhost:19000/minio/health/ready
       - name: Run tests and package
         run: mvn -B verify

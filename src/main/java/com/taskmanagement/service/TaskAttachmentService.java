@@ -12,15 +12,20 @@ import com.taskmanagement.security.CurrentUser;
 import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @Transactional(readOnly = true)
 public class TaskAttachmentService {
+    private static final Logger log = LoggerFactory.getLogger(TaskAttachmentService.class);
     private final TaskRepository tasks;
     private final TaskAttachmentRepository attachments;
     private final ObjectStorageService storage;
@@ -49,9 +54,21 @@ public class TaskAttachmentService {
         String fileName = safeFileName(file.getOriginalFilename());
         String contentType = normalizeContentType(file.getContentType());
         String objectKey = "tasks/" + taskId + "/" + UUID.randomUUID();
+        requireTransaction();
         String etag;
-        try {
-            etag = storage.upload(objectKey, contentType, file.getSize(), file.getInputStream());
+        try (var input = file.getInputStream()) {
+            etag = storage.upload(objectKey, contentType, file.getSize(), input);
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    if (status == STATUS_ROLLED_BACK) {
+                        deleteObjectSafely(objectKey);
+                    } else if (status == STATUS_UNKNOWN) {
+                        // A commit with an unknown outcome might have persisted the row.
+                        log.error("Attachment transaction outcome unknown; reconcile object {}", objectKey);
+                    }
+                }
+            });
         } catch (IOException exception) {
             throw new AttachmentValidationException("Could not read the uploaded file");
         }
@@ -63,12 +80,7 @@ public class TaskAttachmentService {
         attachment.setContentType(contentType);
         attachment.setSizeBytes(file.getSize());
         attachment.setEtag(etag);
-        try {
-            return TaskAttachmentResponse.from(attachments.saveAndFlush(attachment));
-        } catch (RuntimeException exception) {
-            storage.delete(objectKey);
-            throw exception;
-        }
+        return TaskAttachmentResponse.from(attachments.saveAndFlush(attachment));
     }
 
     public AttachmentContent download(Long taskId, Long attachmentId) {
@@ -82,7 +94,7 @@ public class TaskAttachmentService {
     public void delete(Long taskId, Long attachmentId) {
         requireTask(taskId);
         TaskAttachment attachment = requireAttachment(taskId, attachmentId);
-        storage.delete(attachment.getObjectKey());
+        deleteAfterCommit(attachment.getObjectKey());
         attachments.delete(attachment);
         attachments.flush();
     }
@@ -90,9 +102,35 @@ public class TaskAttachmentService {
     @Transactional
     public void deleteAllForTask(Task task) {
         List<TaskAttachment> rows = attachments.findAllByTaskIdOrderById(task.getId());
-        rows.forEach(attachment -> storage.delete(attachment.getObjectKey()));
+        rows.forEach(attachment -> deleteAfterCommit(attachment.getObjectKey()));
         attachments.deleteAll(rows);
         attachments.flush();
+    }
+
+    private void requireTransaction() {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()
+                || !TransactionSynchronizationManager.isSynchronizationActive()) {
+            throw new IllegalStateException("Attachment mutation requires an active transaction");
+        }
+    }
+
+    private void deleteAfterCommit(String objectKey) {
+        requireTransaction();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                deleteObjectSafely(objectKey);
+            }
+        });
+    }
+
+    private void deleteObjectSafely(String objectKey) {
+        try {
+            storage.delete(objectKey);
+        } catch (RuntimeException exception) {
+            // Cleanup must not mask a database failure or report a committed delete as rolled back.
+            log.error("Attachment object cleanup failed; reconcile object {}", objectKey, exception);
+        }
     }
 
     private Task requireTask(Long taskId) {

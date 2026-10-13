@@ -310,7 +310,50 @@ The default limit is 10 MB and can be changed with `ATTACHMENT_MAX_FILE_SIZE`.
 Set `ATTACHMENT_MAX_REQUEST_SIZE` too when a custom file limit needs additional
 multipart envelope overhead.
 Task ownership rules also apply to every attachment endpoint. Deleting a Task
-deletes its attachment objects before deleting its database rows.
+deletes its database rows in the transaction and removes attachment objects only
+after the outer transaction commits. A rolled-back delete preserves the objects.
+Successful uploads register rollback cleanup, including failures after
+`saveAndFlush`. Cleanup errors are logged with the object key without masking
+the database error or reporting a committed delete as failed.
+
+PostgreSQL and MinIO do not share an atomic transaction. Cleanup is best effort:
+a process crash, failed MinIO deletion, or unknown commit outcome can leave
+unreferenced objects. An unknown outcome retains the object to avoid deleting a
+possibly committed attachment. Reconcile logged keys against committed metadata;
+durable retry/outbox and periodic orphan reconciliation remain follow-up work.
+
+Real storage tests (no storage/repository mocks) use a disposable PostgreSQL
+database and Docker MinIO. Start isolated fixtures and run:
+
+```bash
+docker run -d --name attachment-review-postgres \
+  -e POSTGRES_DB=attachment_test -e POSTGRES_USER=attachment_test \
+  -e POSTGRES_PASSWORD=attachment_test_only -p 127.0.0.1:15432:5432 postgres:17
+docker run -d --name attachment-review-minio \
+  -e MINIO_ROOT_USER=test-access-key -e MINIO_ROOT_PASSWORD=test-secret-key \
+  -p 127.0.0.1:19000:9000 cgr.dev/chainguard/minio:latest server /data
+until docker exec attachment-review-postgres pg_isready -U attachment_test; do sleep 1; done
+curl --fail --silent --show-error --retry 30 --retry-all-errors --retry-delay 2 \
+  --connect-timeout 2 --max-time 5 http://localhost:19000/minio/health/ready
+POSTGRES_HOST=localhost POSTGRES_PORT=15432 POSTGRES_DB=attachment_test \
+POSTGRES_USER=attachment_test POSTGRES_PASSWORD=attachment_test_only \
+S3_ENDPOINT=http://localhost:19000 RUN_ATTACHMENT_TESTS=true \
+mvn -B -Dtest=AttachmentStorageIntegrationTest test
+docker rm -f attachment-review-postgres attachment-review-minio
+```
+
+The test-only credentials are `test-access-key` / `test-secret-key` (configured
+in `src/test/resources/application.properties`); start MinIO with these values.
+The suite verifies the HTTP upload → download → delete round trip, rollback of
+upload and delete, metadata insertion failure, a PostgreSQL error during commit preparation, and rollback /
+commit when deleting a task with multiple attachments. CI starts Docker MinIO
+and sets `RUN_ATTACHMENT_TESTS=true` so this suite runs on every build.
+
+Verified locally on 2026-10-13 with Docker PostgreSQL 17 and MinIO: all six
+`AttachmentStorageIntegrationTest` cases passed. `mvn -B verify` with
+`RUN_ATTACHMENT_TESTS=true` passed (60 tests executed, 34 other infrastructure
+tests skipped; zero failures/errors). This confirms the tested rollback paths;
+it does not cover process crashes, lost commit acknowledgements, or durable retry.
 
 For AWS S3 or another compatible service, configure `S3_REGION`, `S3_BUCKET`,
 `S3_ACCESS_KEY`, `S3_SECRET_KEY`, optional `S3_ENDPOINT`, and
