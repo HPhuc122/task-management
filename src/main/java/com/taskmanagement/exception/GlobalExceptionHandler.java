@@ -20,6 +20,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 @RestControllerAdvice
@@ -29,6 +30,18 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(IdempotencyConflictException.class)
     public ProblemDetail handleIdempotencyConflict(IdempotencyConflictException exception) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
+    }
+
+    @ExceptionHandler(AttachmentValidationException.class)
+    public ProblemDetail handleAttachmentValidation(AttachmentValidationException exception) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+    }
+
+    @ExceptionHandler(ObjectStorageException.class)
+    public ProblemDetail handleObjectStorage(ObjectStorageException exception) {
+        log.error("Object storage operation failed", exception);
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY,
+                "The attachment storage service is unavailable");
     }
 
     @ExceptionHandler(AuthenticationException.class)
@@ -69,6 +82,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             HttpMessageNotReadableException exception, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         return handleExceptionInternal(exception, ProblemDetail.forStatusAndDetail(status,
                 "Malformed JSON or invalid field value"), headers, status, request);
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleMaxUploadSizeExceededException(
+            MaxUploadSizeExceededException exception, HttpHeaders headers,
+            HttpStatusCode status, WebRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.PAYLOAD_TOO_LARGE,
+                "Attachment exceeds the configured upload size limit");
+        return handleExceptionInternal(exception, problem, headers, HttpStatus.PAYLOAD_TOO_LARGE, request);
     }
 
     @Override

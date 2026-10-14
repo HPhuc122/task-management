@@ -118,7 +118,7 @@ openssl rand -base64 32
 docker compose up --build -d
 ```
 
-This builds and starts the Spring Boot API, PostgreSQL, Redis, RabbitMQ and Mailpit. The API is at
+This builds and starts the Spring Boot API, PostgreSQL, Redis, RabbitMQ, Mailpit and MinIO. The API is at
 `http://localhost:8080` by default; set `APP_PORT` in `.env` to change the host
 port. `docker compose ps` shows container health and `docker compose logs app`
 shows application output. Published database, cache, broker and Mailpit ports
@@ -128,7 +128,8 @@ A missing or invalid key prevents startup. Changing the
 key invalidates existing tokens. `JWT_ACCESS_TOKEN_TTL` defaults to `1h`.
 
 Flyway applies `V1` (schema), `V2` (demo data), `V3` (projects),
-`V4` (pagination/cache indexes) and `V5` (idempotency/notification outbox)
+`V4` (pagination/cache indexes), `V5` (idempotency/notification outbox) and
+`V6` (Task attachment metadata)
 before Hibernate validates the mappings. The current `V2`
 migration inserts sample users, categories and tasks in every environment.
 Its password hashes are placeholders. Only the `demo` profile (without `prod`) activates two
@@ -281,6 +282,84 @@ forbidden access returns 403. Unexpected errors return a safe 500 response.
 Source structure: `controller` handles HTTP and validation, `service` owns
 transactions and business logic, `repository` provides JPA access, `dto`
 defines API payloads, and `exception` handles errors centrally.
+
+### Task attachments (MinIO/S3)
+
+Attachment bytes are stored in a private S3-compatible bucket; PostgreSQL stores
+only metadata and the object key. When running with Compose, the application
+creates the `task-attachments` bucket in MinIO automatically. Its API is at `http://localhost:9000` and console at
+`http://localhost:9001` by default. The local credentials and ports come from
+`.env`; use private credentials in every non-local environment.
+Compose uses Chainguard's maintained public MinIO image because the upstream
+community project no longer publishes its prebuilt Docker Hub/Quay images.
+
+| Method | Endpoint | Success |
+| --- | --- | --- |
+| POST | `/api/tasks/{taskId}/attachments` (`multipart/form-data`, part `file`) | 201 |
+| GET | `/api/tasks/{taskId}/attachments` | 200 metadata array |
+| GET | `/api/tasks/{taskId}/attachments/{attachmentId}/content` | 200 file bytes |
+| DELETE | `/api/tasks/{taskId}/attachments/{attachmentId}` | 204 |
+
+```bash
+curl -i -X POST "http://localhost:8080/api/tasks/$TASK_ID/attachments" \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@./notes.pdf"
+```
+
+The default limit is 10 MB and can be changed with `ATTACHMENT_MAX_FILE_SIZE`.
+Set `ATTACHMENT_MAX_REQUEST_SIZE` too when a custom file limit needs additional
+multipart envelope overhead.
+Task ownership rules also apply to every attachment endpoint. Deleting a Task
+deletes its database rows in the transaction and removes attachment objects only
+after the outer transaction commits. A rolled-back delete preserves the objects.
+Successful uploads register rollback cleanup, including failures after
+`saveAndFlush`. Cleanup errors are logged with the object key without masking
+the database error or reporting a committed delete as failed.
+
+PostgreSQL and MinIO do not share an atomic transaction. Cleanup is best effort:
+a process crash, failed MinIO deletion, or unknown commit outcome can leave
+unreferenced objects. An unknown outcome retains the object to avoid deleting a
+possibly committed attachment. Reconcile logged keys against committed metadata;
+durable retry/outbox and periodic orphan reconciliation remain follow-up work.
+
+Real storage tests (no storage/repository mocks) use a disposable PostgreSQL
+database and Docker MinIO. Start isolated fixtures and run:
+
+```bash
+docker run -d --name attachment-review-postgres \
+  -e POSTGRES_DB=attachment_test -e POSTGRES_USER=attachment_test \
+  -e POSTGRES_PASSWORD=attachment_test_only -p 127.0.0.1:15432:5432 postgres:17
+docker run -d --name attachment-review-minio \
+  -e MINIO_ROOT_USER=test-access-key -e MINIO_ROOT_PASSWORD=test-secret-key \
+  -p 127.0.0.1:19000:9000 cgr.dev/chainguard/minio:latest server /data
+until docker exec attachment-review-postgres pg_isready -U attachment_test; do sleep 1; done
+curl --fail --silent --show-error --retry 30 --retry-all-errors --retry-delay 2 \
+  --connect-timeout 2 --max-time 5 http://localhost:19000/minio/health/ready
+POSTGRES_HOST=localhost POSTGRES_PORT=15432 POSTGRES_DB=attachment_test \
+POSTGRES_USER=attachment_test POSTGRES_PASSWORD=attachment_test_only \
+S3_ENDPOINT=http://localhost:19000 RUN_ATTACHMENT_TESTS=true \
+mvn -B -Dtest=AttachmentStorageIntegrationTest test
+docker rm -f attachment-review-postgres attachment-review-minio
+```
+
+The test-only credentials are `test-access-key` / `test-secret-key` (configured
+in `src/test/resources/application.properties`); start MinIO with these values.
+The suite verifies the HTTP upload → download → delete round trip, rollback of
+upload and delete, metadata insertion failure, a PostgreSQL error during commit preparation, and rollback /
+commit when deleting a task with multiple attachments. CI starts Docker MinIO
+and sets `RUN_ATTACHMENT_TESTS=true` so this suite runs on every build.
+
+Verified locally on 2026-10-13 with Docker PostgreSQL 17 and MinIO: all six
+`AttachmentStorageIntegrationTest` cases passed. `mvn -B verify` with
+`RUN_ATTACHMENT_TESTS=true` passed (60 tests executed, 34 other infrastructure
+tests skipped; zero failures/errors). This confirms the tested rollback paths;
+it does not cover process crashes, lost commit acknowledgements, or durable retry.
+
+For AWS S3 or another compatible service, configure `S3_REGION`, `S3_BUCKET`,
+`S3_ACCESS_KEY`, `S3_SECRET_KEY`, optional `S3_ENDPOINT`, and
+`S3_PATH_STYLE_ACCESS`. When static keys are omitted, the AWS SDK default
+credential chain is used (for example, an IAM role). The bucket must already
+exist outside the local Compose environment.
 
 
 ## 6. Authentication and authorization

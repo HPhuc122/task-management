@@ -62,6 +62,11 @@ spring:
       repositories:
         enabled: false
 
+  servlet:
+    multipart:
+      max-file-size: ${ATTACHMENT_MAX_FILE_SIZE:10MB}
+      max-request-size: ${ATTACHMENT_MAX_REQUEST_SIZE:11MB}
+
 server:
   port: 8080
 
@@ -80,3 +85,12 @@ app:
     secret: ${JWT_SECRET:}
     issuer: task-management
     access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:1h}
+  storage:
+    endpoint: ${S3_ENDPOINT:}
+    region: ${S3_REGION:us-east-1}
+    access-key: ${S3_ACCESS_KEY:}
+    secret-key: ${S3_SECRET_KEY:}
+    bucket: ${S3_BUCKET:task-attachments}
+    path-style-access: ${S3_PATH_STYLE_ACCESS:false}
+    create-bucket: ${S3_CREATE_BUCKET:false}
+    max-file-size: ${ATTACHMENT_MAX_FILE_SIZE:10MB}
