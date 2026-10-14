@@ -1,7 +1,7 @@
 import { AxiosError } from 'axios'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api, errorMessage, fieldErrors } from '../services/api'
-import { clearSession, getToken, setSession } from '../services/session'
+import { clearSession, getToken, SESSION_STORAGE_KEY, setSession } from '../services/session'
 const initialAdapter = api.defaults.adapter
 afterEach(() => { api.defaults.adapter = initialAdapter; clearSession() })
 const failure = (config, status, data = {}) => new AxiosError('Request failed', 'ERR_BAD_RESPONSE', config, null, { status, data, config, headers: {} })
@@ -22,6 +22,7 @@ describe('Axios authentication and ProblemDetail', () => {
     api.defaults.adapter = async (config) => { throw failure(config, 401) }
     await expect(api.get('/tasks')).rejects.toMatchObject({ response: { status: 401 } })
     expect(getToken()).toBeNull()
+    expect(sessionStorage.getItem(SESSION_STORAGE_KEY)).toBeNull()
   })
   it('ignores late 401 responses belonging to an older session', async () => {
     setSession('old-token', 3600)
@@ -31,6 +32,7 @@ describe('Axios authentication and ProblemDetail', () => {
     }
     await expect(api.get('/tasks')).rejects.toBeDefined()
     expect(getToken()).toBe('new-token')
+    expect(JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY)).accessToken).toBe('new-token')
   })
   it('retains JWT on 403 and requests role synchronization', async () => {
     setSession('test-token', 3600)

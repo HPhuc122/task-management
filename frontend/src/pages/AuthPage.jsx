@@ -5,9 +5,10 @@ import { Brand } from '../components/AppLayout'
 import { Field, FormError } from '../components/ui'
 import { useAuth } from '../context/auth-context'
 import { errorMessage, fieldErrors } from '../services/api'
+import AuthSessionStatus from '../components/AuthSessionStatus'
 
 export default function AuthPage({ register = false }) {
-  const { user, authenticate } = useAuth()
+  const { user, authenticate, authLoading, authError } = useAuth()
   const location = useLocation()
   const [values, setValues] = useState({ email: '', password: '', confirmation: '' })
   const [show, setShow] = useState(false)
@@ -16,6 +17,7 @@ export default function AuthPage({ register = false }) {
   const [errors, setErrors] = useState({})
   const from = location.state?.from
   const destination = typeof from === 'string' && from.startsWith('/') && !from.startsWith('//') && !/^\/(login|register)/.test(from) ? from : '/dashboard'
+  if (authLoading || (!user && authError)) return <AuthSessionStatus />
   if (user) return <Navigate to={destination} replace />
   const change = (event) => setValues((prev) => ({ ...prev, [event.target.name]: event.target.value }))
   const submit = async (event) => {
@@ -42,7 +44,7 @@ export default function AuthPage({ register = false }) {
         <Field label="Mật khẩu" error={errors.password} hint={register ? 'Từ 8 ký tự, tối đa 72 byte UTF-8.' : undefined}><div className="input-icon"><LockKeyhole size={18} /><input name="password" type={show ? 'text' : 'password'} autoComplete={register ? 'new-password' : 'current-password'} placeholder="Nhập mật khẩu của bạn" minLength={register ? 8 : 1} maxLength={72} required value={values.password} onChange={change} disabled={busy} /><button type="button" className="icon-button" onClick={() => setShow((v) => !v)} aria-label={show ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}>{show ? <EyeOff size={18} /> : <Eye size={18} />}</button></div></Field>
         {register && <Field label="Xác nhận mật khẩu" error={errors.confirmation}><input name="confirmation" type={show ? 'text' : 'password'} autoComplete="new-password" placeholder="Nhập lại mật khẩu" minLength={8} maxLength={72} required value={values.confirmation} onChange={change} disabled={busy} /></Field>}
         <button className="btn btn-primary auth-submit" disabled={busy}>{busy ? <LoaderCircle size={18} className="animate-spin" /> : null}{busy ? 'Đang xử lý…' : register ? 'Tạo tài khoản' : 'Đăng nhập'}{!busy && <ArrowRight size={18} />}</button>
-      </form><p className="auth-switch">{register ? 'Đã có tài khoản?' : 'Chưa có tài khoản?'} <Link to={register ? '/login' : '/register'} onClick={() => { setError(''); setErrors({}); setValues({ email: '', password: '', confirmation: '' }) }}>{register ? 'Đăng nhập' : 'Đăng ký ngay'}</Link></p><p className="session-note"><LockKeyhole size={13} />Phiên đăng nhập kết thúc khi bạn tải lại hoặc đóng trang.</p>
+      </form><p className="auth-switch">{register ? 'Đã có tài khoản?' : 'Chưa có tài khoản?'} <Link to={register ? '/login' : '/register'} onClick={() => { setError(''); setErrors({}); setValues({ email: '', password: '', confirmation: '' }) }}>{register ? 'Đăng nhập' : 'Đăng ký ngay'}</Link></p><p className="session-note"><LockKeyhole size={13} />Phiên đăng nhập được giữ khi tải lại trong cùng tab, đến khi hết hạn hoặc bạn đăng xuất.</p>
     </div><p className="auth-form-footer">Gọn gàng hơn. Tập trung hơn. Hiệu quả hơn.</p></section>
   </main>
 }
