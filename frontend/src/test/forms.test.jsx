@@ -7,13 +7,14 @@ import ResourceForm from '../components/ResourceForm'
 import DeleteDialog from '../components/DeleteDialog'
 import { AuthContext } from '../context/auth-context'
 import { ToastContext } from '../context/toast-context'
-import { categoryService, projectService, taskService } from '../services/resources'
+import { attachmentService, categoryService, projectService, taskService } from '../services/resources'
 
 const owner = { id: 4, email: 'member@example.com', role: 'USER' }
 function renderForm(node, admin = false) {
   return render(<ToastContext.Provider value={vi.fn()}><AuthContext.Provider value={{ user: { ...owner, role: admin ? 'ADMIN' : 'USER' }, isAdmin: admin }}>{node}</AuthContext.Provider></ToastContext.Provider>)
 }
 beforeEach(() => {
+  vi.spyOn(attachmentService, 'list').mockResolvedValue([])
   vi.spyOn(projectService, 'list').mockResolvedValue([{ id: 9, name: 'Đồ án', userId: 4 }])
   vi.spyOn(categoryService, 'list').mockResolvedValue([{ id: 2, name: 'Học tập' }])
 })

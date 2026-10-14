@@ -47,9 +47,26 @@ Các giới hạn backend được giữ nguyên:
 - Không có API logout hoặc refresh token. Đăng xuất xóa JWT ở client; token đã phát hành vẫn có hiệu lực ở backend đến khi hết hạn. Hết hạn cần đăng nhập lại.
 - Xóa Project/Category giữ lại Task và đặt khóa liên kết về null theo migration (`ON DELETE SET NULL`).
 
+## Kiểm thử tệp đính kèm
+
+Sau khi chạy backend, PostgreSQL và MinIO/S3 theo cấu hình hiện tại, mở frontend và đăng nhập bằng tài khoản có quyền truy cập Task:
+
+1. Tạo một công việc, lưu thành công rồi mở **Chỉnh sửa công việc**. Task mới chưa có ID sẽ chỉ hiện hướng dẫn thêm tệp sau khi tạo.
+2. Ở **Tệp đính kèm**, chọn lần lượt JPG/JPEG/PNG/WEBP/GIF, PDF, DOCX và ZIP (tối đa 10 MB mỗi tệp). Kiểm tra tên, dung lượng, ngày tải lên và số lượng tệp. Upload lại cùng tên để kiểm tra từng ID được quản lý riêng.
+3. Bấm tên hoặc nút **Xem** của ảnh/PDF/DOCX. Preview phải nằm trên dialog sửa Task; ảnh giữ tỷ lệ, PDF/DOCX cuộn được. Đóng bằng nút góc trên hoặc Escape và kiểm tra form vẫn giữ nội dung đang sửa.
+4. Bấm **Tải xuống** ở danh sách hoặc Preview. ZIP tải ngay khi bấm tên. Kiểm tra tên tiếng Việt và nội dung file; trong DevTools Network, request content phải có Bearer, không có token trong URL.
+5. Bấm thùng rác rồi **Hủy**: tệp còn nguyên, không có DELETE. Thử lại và **Xóa dữ liệu**: có trạng thái đang xử lý, danh sách/số lượng cập nhật. Xóa từ Preview phải đóng cả Preview và xác nhận sau thành công.
+6. Thử file rỗng, file lớn hơn 10 MB, HTML/SVG hoặc phần mở rộng khác: frontend từ chối trước POST. Thử tắt mạng, hết phiên, không có quyền, file đã xóa hoặc storage không hoạt động để kiểm tra thông báo phù hợp.
+7. Kiểm tra ở màn hình laptop và điện thoại (ví dụ 390 × 844), mở/đóng TaskForm nhiều lần, đóng khi Preview đang tải và kiểm tra không kẹt cuộn trang.
+
+Upload/content/delete có timeout 60 giây; request đang chạy được hủy khi đóng phần đính kèm hoặc Preview tương ứng. Download dùng Axios Blob và giữ tên từ metadata. Blob URL được thu hồi khi đóng Preview hoặc sau khi trình duyệt bắt đầu download.
+
+DOCX dùng `docx-preview`, được tải thư viện khi cần; render cục bộ trong iframe sandbox, chặn script và tài nguyên mạng, tắt HTML altChunks. Bố cục Word phức tạp có thể khác bản gốc. PDF phụ thuộc trình xem tích hợp của trình duyệt; giao diện có hướng dẫn/nút tải xuống khi không xem được. Test Vitest dùng fixture và mock renderer để kiểm tra luồng UI; cần thử tài liệu thật với backend/MinIO để nghiệm thu tích hợp.
+
 ## JWT và phân quyền
 
-- JWT chỉ lưu **trong bộ nhớ** của trang; không ghi `localStorage`, `sessionStorage`, cookie, URL hay log. Tải lại hoặc đóng trang phải đăng nhập lại. Đây là lựa chọn có chủ đích vì backend chưa có refresh token/cookie HttpOnly. Bộ nhớ vẫn không miễn nhiễm với XSS; nội dung API được render bằng React text, không chèn HTML.
+- JWT lưu trong RAM và `sessionStorage` cùng thời điểm hết hạn tuyệt đối `expiresAt`, tại khóa `taskflow.auth.session`. Không lưu mật khẩu, không dùng `localStorage`, cookie, URL hay log để lưu JWT. Refresh trong cùng tab giữ phiên và đường dẫn hiện tại; đóng tab sẽ kết thúc phiên lưu trữ theo vòng đời `sessionStorage`. Đăng xuất xóa cả RAM và dữ liệu phiên đã lưu. `sessionStorage` vẫn có rủi ro nếu ứng dụng bị XSS; đây là giải pháp thực dụng khi backend chưa có refresh token/cookie HttpOnly.
+- Khi khởi động, frontend kiểm tra dữ liệu phiên và thời hạn, hiển thị Loading rồi gọi `/api/auth/me` trước khi mở trang được bảo vệ. Không lưu hoặc tin cậy role/user trong storage. Phiên hết hạn hoặc 401 chuyển về đăng nhập; lỗi mạng/5xx giữ token còn hạn và hiển thị nút **Thử lại**, không chuyển sang đăng nhập khi chưa xác định phiên không hợp lệ. Refresh không gia hạn JWT.
 - Axios gắn `Authorization: Bearer ...` vào request cần xác thực; không gắn vào login/register. Timeout 15 giây; request đọc bị hủy khi điều hướng hoặc bộ lọc thay đổi.
 - Sau đăng nhập/đăng ký, frontend gọi `/api/auth/me` trước khi cấp giao diện theo quyền. Không tự giải mã JWT để tin cậy role. Đồng bộ `/me` khi quay lại cửa sổ và sau 403; backend vẫn là nơi quyết định quyền cuối cùng trên từng request.
 - Bộ đếm `expiresIn` kết thúc phiên; 401 từ request của phiên hiện tại xóa phiên, báo hết hạn và chuyển về login, giữ đường dẫn đang mở để tiếp tục sau đăng nhập. 401 trả về muộn của phiên cũ không đăng xuất phiên mới.
@@ -106,7 +123,7 @@ src/
   hooks/         useResource: loading/error/data/reload và AbortController
   lib/           Enum tiếng Việt, ngày giờ, thống kê, filter, ánh xạ Task DTO
   pages/         Auth, Dashboard, Tasks, Projects, Categories, NotFound
-  services/      Axios, session JWT trong bộ nhớ, API resources
+  services/      Axios, session JWT trong RAM/sessionStorage, API resources
   test/          Kiểm thử và fixture chỉ dùng khi test
 ```
 

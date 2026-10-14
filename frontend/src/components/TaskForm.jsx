@@ -1,3 +1,4 @@
+import TaskAttachments from './TaskAttachments'
 import { useCallback, useRef, useState } from 'react'
 import { LoaderCircle, Save } from 'lucide-react'
 import Modal from './Modal'
@@ -56,7 +57,9 @@ function TaskEditor({ task, projects, categories, user, isAdmin, onClose, onSucc
     } catch (err) { setError(errorMessage(err)); setErrors(fieldErrors(err)); setBusy(false) }
   }
   return <Modal title={task ? 'Chỉnh sửa công việc' : 'Tạo công việc mới'} description="Điền thông tin để sắp xếp công việc rõ ràng hơn." onClose={onClose} busy={busy} wide>
-    <form onSubmit={submit}><fieldset disabled={busy} className="modal-body form-grid"><FormError message={error} />
+    <form onSubmit={submit}>
+      <div className="modal-body">
+      <fieldset disabled={busy} className="form-grid"><FormError message={error} />
       <Field label="Tên công việc *" error={errors.title} className="col-span-full"><input name="title" autoFocus required maxLength={255} placeholder="Ví dụ: Hoàn thiện giao diện đăng nhập" value={values.title} onChange={change} /></Field>
       <Field label="Mô tả" error={errors.description} className="col-span-full"><textarea name="description" rows={3} placeholder="Nội dung, yêu cầu hoặc ghi chú cho công việc…" value={values.description} onChange={change} /></Field>
       <Field label="Trạng thái" error={errors.status}><select name="status" value={values.status} onChange={change}>{Object.entries(STATUSES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field>
@@ -66,6 +69,7 @@ function TaskEditor({ task, projects, categories, user, isAdmin, onClose, onSucc
       {isAdmin && <Field label="Danh mục" error={errors.categoryId}><select name="categoryId" value={values.categoryId} onChange={change}><option value="">Không có danh mục</option>{task?.categoryId && !categories.some((c) => c.id === task.categoryId) && <option value={task.categoryId}>Danh mục #{task.categoryId}</option>}{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>}
       {isAdmin && <Field label="ID người sở hữu *" error={errors.userId} hint="Nhập ID tài khoản đã tồn tại trong hệ thống."><input name="userId" type="number" min={1} step={1} required value={values.userId} onChange={change} /></Field>}
       {!isAdmin && task?.categoryId && <p className="field-hint col-span-full">Danh mục #{task.categoryId} do quản trị viên quản lý sẽ được giữ nguyên.</p>}
-    </fieldset><div className="modal-footer"><button type="button" className="btn btn-secondary" disabled={busy} onClick={onClose}>Hủy</button><button className="btn btn-primary" disabled={busy}>{busy ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} />}{task ? 'Lưu thay đổi' : 'Tạo công việc'}</button></div></form>
+      {task ? <TaskAttachments key={task.id} taskId={task.id} /> : <p className="field-hint col-span-full">Tạo công việc thành công trước, sau đó mở chỉnh sửa để thêm tệp đính kèm.</p>}</fieldset></div>
+      <div className="modal-footer"><button type="button" className="btn btn-secondary" disabled={busy} onClick={onClose}>Hủy</button><button className="btn btn-primary" disabled={busy}>{busy ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} />}{task ? 'Lưu thay đổi' : 'Tạo công việc'}</button></div></form>
   </Modal>
 }

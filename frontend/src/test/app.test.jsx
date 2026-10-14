@@ -24,6 +24,7 @@ beforeEach(() => {
     else if (config.url === '/auth/me') data = { ...owner, role }
     else if (config.url === '/tasks/15' && config.method === 'put') { currentTask = { ...currentTask, ...JSON.parse(config.data) }; data = currentTask }
     else if (config.url === '/tasks/15') data = currentTask
+    else if (config.url === '/tasks/15/attachments') data = []
     else if (config.url === '/tasks' && config.params?.userId) data = config.params.cursor ? { content: [{ ...currentTask, id: 2, title: 'Trang thứ hai' }], nextCursor: null, hasNext: false } : { content: [{ id: currentTask.id, title: currentTask.title, status: currentTask.status, priority: currentTask.priority, dueDate: currentTask.dueDate, categoryId: currentTask.categoryId }], nextCursor: 15, hasNext: true }
     else if (config.url === '/tasks') data = [currentTask]
     else if (config.url === '/projects') data = [{ id: 9, name: 'Đồ án', description: 'Dự án thật', userId: 4, createdAt: '2026-01-01T00:00:00Z' }]

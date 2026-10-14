@@ -254,7 +254,7 @@ svg { flex-shrink: 0; }
 .modal > form { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .modal > form > .modal-body { overflow-y: auto; min-height: 0; }
 .modal::backdrop { background: #172b4c70; backdrop-filter: blur(3px); }
-.modal-wide { max-width: 640px; }
+.modal-wide { max-width: 640px; overflow: clip; }
 .modal-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 23px 25px 20px; border-bottom: 1px solid #edf1f7; flex-shrink: 0; }
 .modal-heading h2 { font-size: 18px; }.modal-heading p { font-size: 11px; line-height: 1.7; color: #8d9bb0; margin-top: 5px; }
 .modal-body { padding: 24px 25px; }
@@ -298,3 +298,64 @@ svg { flex-shrink: 0; }
 }
 @media (max-width: 480px) { .global-search { display: none; }.topbar { padding-inline: 12px; }.page-content { padding-inline: 14px; }.page-heading h1 { font-size: 23px; }.welcome-banner { padding: 24px 21px; }.welcome-banner h2 { font-size: 23px; }.banner-visual { display: none; }.stats-grid { gap: 10px; }.stat-card { padding: 13px; }.stat-icon { width: 30px; height: 30px; }.stat-icon svg { width: 18px; height: 18px; }.stat-top { font-size: 10px; }.stat-bottom { font-size: 8px; }.stat-bottom > svg { width: 13px; }.stat-card > strong { margin-top: 8px; }.progress-chart { padding: 6px 18px 25px; gap: 23px; justify-content: center; }.chart-legend { min-width: 118px; font-size: 9px; }.donut { width: 130px; height: 130px; }.donut > div { width: 105px; height: 105px; }.deadlines-panel .deadline-list { display: block; padding-inline: 18px; }.panel-heading { padding: 18px; gap: 12px; }.panel-heading > .text-link { font-size: 10px; white-space: nowrap; }.panel-heading:has(.input-icon) { flex-direction: column; align-items: stretch; }.panel-heading .input-icon { max-width: none; }.projects-grid,.project-preview-grid { grid-template-columns: 1fr; }.list-toolbar { align-items: stretch; flex-direction: column; gap: 10px; }.list-toolbar .input-icon { max-width: none; }.list-toolbar > span { font-size: 11px; }.tab-buttons { gap: 17px; }.tab { font-size: 11px; }.panel-meta { display: none; }.filter-controls { gap: 7px; }.filter-controls > svg { display: none; }.filter-controls select { width: calc(50% - 4px); flex: auto; }.pagination { flex-wrap: wrap; gap: 9px; padding: 13px 14px; }.pagination > span { font-size: 9px; }.pagination-buttons { margin-left: auto; }.admin-notice { padding: 14px; }.admin-notice p { font-size: 10px; }.modal-body { padding: 20px; }.modal-heading { padding: 20px; }.modal-heading h2 { font-size: 17px; }.modal-footer { padding: 15px 20px; }.form-grid { grid-template-columns: 1fr; }.toast { font-size: 11px; }.task-search { min-width: 0; }.section-heading h2 { font-size: 14px; } }
 @media (prefers-reduced-motion: reduce) { *,*::before,*::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; } }
+.modal > form {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.modal > form > .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.modal-body > .form-grid {
+  align-content: start;
+}
+
+/* Task attachments and document viewer */
+.modal-title-group { min-width: 0; flex: 1; }
+.modal-header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.task-attachments { min-width: 0; padding: 16px; border: 1px solid #e2e9f4; border-radius: 12px; background: #f8faff; }
+.attachment-section-heading,.attachment-section-heading > div { display: flex; align-items: center; gap: 9px; }
+.attachment-section-heading { justify-content: space-between; margin-bottom: 13px; color: #2563eb; }
+.attachment-section-heading h3 { font-size: 13px; }
+.attachment-count { background: #e4edff; color: #2563eb; border-radius: 20px; padding: 2px 8px; font-size: 11px; }
+.attachment-upload { display: flex; flex-direction: column; align-items: center; gap: 9px; border: 2px dashed #c6d8fa; border-radius: 9px; padding: 20px 12px; text-align: center; cursor: pointer; background: #fff; color: #2563eb; }
+.attachment-upload:hover,.attachment-upload:focus-within { border-color: #6c9bef; background: #f0f5ff; }
+.attachment-upload:has(input:disabled) { opacity: .6; cursor: wait; }
+.attachment-upload span { font-size: 12px; font-weight: 600; }
+.attachment-upload small { font-size: 10px; color: #7a8ba5; line-height: 1.7; }
+.task-attachments > .field-error { margin-top: 10px; }
+.attachment-status { display: flex; align-items: center; gap: 7px; font-size: 11px; color: #738198; margin-top: 12px; }
+.attachment-empty { text-align: center; color: #7a8ba5; font-size: 11px; padding: 20px 8px 5px; line-height: 1.8; }
+.attachment-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.attachment-row { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 11px; background: #fff; border: 1px solid #e2e9f4; border-radius: 9px; }
+.attachment-icon { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 37px; height: 40px; border-radius: 8px; background: #edf3ff; color: #3975d5; }
+.attachment-icon-image { background: #eaf8f1; color: #22866a; }
+.attachment-icon-pdf { background: #fff0f3; color: #c75b70; }
+.attachment-icon-zip { background: #fff7e7; color: #a87920; }
+.attachment-details { flex: 1; min-width: 0; }
+.attachment-name { display: block; max-width: 100%; padding: 0; border: 0; background: transparent; color: #366ac2; font-weight: 600; font-size: 12px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attachment-name:hover { text-decoration: underline; }
+.attachment-details p { color: #7a8ba5; font-size: 10px; margin-top: 5px; line-height: 1.6; }
+.attachment-actions { display: flex; gap: 2px; flex-shrink: 0; }
+.attachment-preview { width: 92vw; max-width: 1440px; height: 92dvh; max-height: 92dvh; }
+.attachment-preview .modal-heading { align-items: center; padding: 16px 20px; }
+.attachment-preview-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.attachment-preview-title > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+.attachment-preview-body { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: auto; background: #edf1f7; overscroll-behavior: contain; }
+.attachment-preview-body > .loading-state { flex: 1; }
+.attachment-image-canvas { display: flex; align-items: center; justify-content: center; flex: 1; min-height: 0; padding: 20px; overflow: auto; }
+.attachment-image-canvas img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+.attachment-document { width: 100%; flex: 1; min-height: 0; border: 0; background: #fff; }
+.attachment-preview-note { padding: 9px 15px; font-size: 11px; color: #667991; text-align: center; }
+.attachment-preview-fallback { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; flex: 1; padding: 30px; text-align: center; color: #667991; line-height: 1.8; }
+@media (max-width: 600px) {
+  .attachment-preview .modal-heading { flex-wrap: wrap; gap: 8px; padding: 12px; }
+  .attachment-preview .modal-title-group { flex-basis: 100%; }
+  .attachment-preview .modal-header-actions { margin-left: auto; }
+  .attachment-preview .btn { min-height: 36px; padding: 7px 12px; }
+  .attachment-row { flex-wrap: wrap; }
+  .attachment-actions { margin-left: auto; }
+  .task-attachments { padding: 12px; }
+}
