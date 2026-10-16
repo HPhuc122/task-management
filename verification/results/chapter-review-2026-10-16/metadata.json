@@ -1,0 +1,28 @@
+{
+  "date": "2026-10-16",
+  "source_commit": "0808cbff44706f1acd49d77316d0aeda2fb452ac",
+  "local_changes": true,
+  "scope": "Backend verify; PostgreSQL/Redis/RabbitMQ/Mailpit/MinIO are real isolated services. No frontend verification in this run.",
+  "spring_boot": "4.0.8",
+  "java": "21.0.12.1",
+  "postgres": "17.11",
+  "maven_command": "mvn -B -o -DargLine=-Xmx512m verify",
+  "flags": {
+    "RUN_DATABASE_TESTS": "true",
+    "RUN_ATTACHMENT_TESTS": "true",
+    "RUN_NOTIFICATION_TESTS": "true"
+  },
+  "test_total": 115,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "tests_by_group": {
+    "Unit/focused context": 28,
+    "WebMvcTest": 36,
+    "DataJpaTest": 4,
+    "SpringBootTest": 47
+  },
+  "jar_sha256": "a3deb3265a6ed7a54bd04d9dea5c97930e24e08ec11f9a4e3212d3f32d167a8a",
+  "full_surefire_reports": "target/chapter-review/surefire-reports/",
+  "http_evidence": "A temporary classpath-only fixture inspects real application beans, tests self-invocation, and calls actual HTTP endpoints. It is not included in the application jar."
+}

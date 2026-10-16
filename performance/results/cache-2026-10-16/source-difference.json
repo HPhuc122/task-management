@@ -1,0 +1,6 @@
+[
+  {
+    "file": "main\\java\\com\\taskmanagement\\config\\RedisCacheConfig.java",
+    "diff": "--- cache-on\n+++ cache-off\n@@ -35,7 +35,6 @@\n  *                Inversion of Control, gi\u1ed1ng ph\u1ea7n demo Greeter tr\u01b0\u1edbc \u0111\u00f3.\n  */\n @Configuration\n-@EnableCaching\n public class RedisCacheConfig {\n \n     /** TTL m\u1eb7c \u0111\u1ecbnh cho m\u1ecdi cache ch\u01b0a \u0111\u01b0\u1ee3c khai b\u00e1o override ri\u00eang. */\n"
+  }
+]

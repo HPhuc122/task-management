@@ -1,0 +1,24 @@
+{
+  "recorded_at_utc": "2026-10-16T13:48:49.060879+00:00",
+  "source_commit": "0808cbff44706f1acd49d77316d0aeda2fb452ac",
+  "local_changes": true,
+  "spring_boot": "4.0.8",
+  "java_image": "eclipse-temurin:21-jre@sha256:cff19e6215689161eb6162c11b86b0c60ddf802164f2eaf48d570f8fb79a36c5",
+  "maven_image": "maven:3.9-eclipse-temurin-21@sha256:99e61abcff91a9b1333463bd8451fb18495d6eba9250ac66a338b518f8278320",
+  "k6_image": "grafana/k6@sha256:3cd0ae83b47a29b273193eb998740c3b0e219fc34cdf579b90a8fc1698f5c025",
+  "app_resources": "1 CPU, 512 MiB memory, heap 128-256 MiB per variant",
+  "postgres": "PostgreSQL 17.11 (Debian 17.11-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+  "category_count": 3,
+  "flyway": "1|t\n2|t\n3|t\n4|t\n5|t\n6|t",
+  "docker_engine": "29.8.2",
+  "docker_host": "linux/x86_64 CPUs=12 RAM=3932835840",
+  "redis_image": "redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499",
+  "postgres_image": "postgres:17@sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f",
+  "warmup": "60 seconds per variant initially; 20 seconds before each measurement",
+  "measurement": "5 VUs, 30 seconds, 3 paired rounds; OFF/ON, ON/OFF, OFF/ON",
+  "difference": "Only the @EnableCaching annotation is removed in the temporary OFF source copy",
+  "jars_sha256": {
+    "on": "a710a3acfee03475550a2ddf10a4e7e20de3f4eaa9d45d4c350871fad048fb67",
+    "off": "f37e8a323bf4e3432e633c65a057c163f966d2cc01ffc86319530fcd73d16b53"
+  }
+}

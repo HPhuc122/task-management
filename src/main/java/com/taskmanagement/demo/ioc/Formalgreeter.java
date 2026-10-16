@@ -5,6 +5,6 @@ import org.springframework.stereotype.Component;
 public class Formalgreeter implements Greeter {
     @Override 
     public String greet(String name){
-        return "Khính chào " + name + ".";
+        return "Kính chào " + name + ".";
     }
 }

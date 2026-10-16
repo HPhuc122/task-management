@@ -1,0 +1,101 @@
+{
+  "runs": [
+    {
+      "round": 1,
+      "mode": "off",
+      "requests": 4816,
+      "avg_ms": 30.898087784883643,
+      "p95_ms": 87.7904655,
+      "requests_per_second": 159.6259445732069,
+      "error_rate": 0,
+      "category_sql_calls": 4816,
+      "redis_hits": 0,
+      "redis_misses": 0
+    },
+    {
+      "round": 1,
+      "mode": "on",
+      "requests": 5391,
+      "avg_ms": 27.52092869486182,
+      "p95_ms": 86.841467,
+      "requests_per_second": 177.68437459785625,
+      "error_rate": 0,
+      "category_sql_calls": 0,
+      "redis_hits": 5391,
+      "redis_misses": 0
+    },
+    {
+      "round": 2,
+      "mode": "on",
+      "requests": 5176,
+      "avg_ms": 28.630326584234872,
+      "p95_ms": 87.45296499999999,
+      "requests_per_second": 170.60200593780573,
+      "error_rate": 0,
+      "category_sql_calls": 0,
+      "redis_hits": 5176,
+      "redis_misses": 0
+    },
+    {
+      "round": 2,
+      "mode": "off",
+      "requests": 5092,
+      "avg_ms": 29.17320358915954,
+      "p95_ms": 87.9917913,
+      "requests_per_second": 167.14874720060186,
+      "error_rate": 0,
+      "category_sql_calls": 5092,
+      "redis_hits": 0,
+      "redis_misses": 0
+    },
+    {
+      "round": 3,
+      "mode": "off",
+      "requests": 8688,
+      "avg_ms": 16.944995217541493,
+      "p95_ms": 81.23730499999999,
+      "requests_per_second": 286.48015249102156,
+      "error_rate": 0,
+      "category_sql_calls": 8688,
+      "redis_hits": 0,
+      "redis_misses": 0
+    },
+    {
+      "round": 3,
+      "mode": "on",
+      "requests": 10347,
+      "avg_ms": 14.208723724557904,
+      "p95_ms": 78.5016921,
+      "requests_per_second": 342.3153854396251,
+      "error_rate": 0,
+      "category_sql_calls": 0,
+      "redis_hits": 10347,
+      "redis_misses": 0
+    }
+  ],
+  "summary": {
+    "off": {
+      "avg_ms": 25.672095530528225,
+      "p95_ms": 85.67318726666666,
+      "requests_per_second": 204.41828142161012,
+      "error_rate": 0,
+      "total_requests": 18596,
+      "category_sql_calls": 18596,
+      "redis_hits": 0
+    },
+    "on": {
+      "avg_ms": 23.453326334551534,
+      "p95_ms": 84.2653747,
+      "requests_per_second": 230.20058865842904,
+      "error_rate": 0,
+      "total_requests": 20914,
+      "category_sql_calls": 0,
+      "redis_hits": 20914
+    },
+    "change_percent": {
+      "avg_latency_reduction": 8.642727249663817,
+      "p95_reduction": 1.6432358962958915,
+      "throughput_increase": 12.612525189781465
+    }
+  }
+}

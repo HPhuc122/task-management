@@ -1,0 +1,13 @@
+api_idempotency
+categories
+flyway_schema_history
+notification_outbox
+projects
+task_attachments
+tasks
+users
+projects|FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+task_attachments|FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+tasks|FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+tasks|FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+tasks|FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL

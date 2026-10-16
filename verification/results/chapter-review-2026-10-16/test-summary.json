@@ -1,0 +1,186 @@
+[
+  {
+    "class": "com.taskmanagement.AttachmentStorageIntegrationTest",
+    "group": "SpringBootTest",
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "class": "com.taskmanagement.BrokerMailIntegrationTest",
+    "group": "SpringBootTest",
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "class": "com.taskmanagement.config.JwtConfigurationTest",
+    "group": "Unit/focused context",
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "class": "com.taskmanagement.controller.ApiTimingAspectTest",
+    "group": "Unit/focused context",
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "class": "com.taskmanagement.controller.CategoryControllerTest",
+    "group": "WebMvcTest",
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "class": "com.taskmanagement.controller.CrudControllerTest",
+    "group": "WebMvcTest",
+    "tests": 22,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "class": "com.taskmanagement.controller.TaskAttachmentControllerTest",
+    "group": "WebMvcTest",
+    "tests": 3,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "class": "com.taskmanagement.CrudIntegrationTest",
+    "group": "SpringBootTest",
+    "tests": 12,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "class": "com.taskmanagement.DatabaseIntegrationTest",
+    "group": "SpringBootTest",
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "class": "com.taskmanagement.demo.DemoAccountSeederTest",
+    "group": "Unit/focused context",
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "class": "com.taskmanagement.demo.ioc.IocDemoTest",
+    "group": "Unit/focused context",
+    "tests": 3,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "class": "com.taskmanagement.DemoAccountIntegrationTest",
+    "group": "SpringBootTest",
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "class": "com.taskmanagement.FeatureIntegrationTest",
+    "group": "SpringBootTest",
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "class": "com.taskmanagement.IdempotencyIntegrationTest",
+    "group": "SpringBootTest",
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "class": "com.taskmanagement.NotificationIntegrationTest",
+    "group": "SpringBootTest",
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "class": "com.taskmanagement.OpenApiIntegrationTest",
+    "group": "SpringBootTest",
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "class": "com.taskmanagement.repository.RepositorySliceTest",
+    "group": "DataJpaTest",
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "class": "com.taskmanagement.security.AuthenticationTest",
+    "group": "WebMvcTest",
+    "tests": 7,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "class": "com.taskmanagement.security.DemoAccountAccessPolicyTest",
+    "group": "Unit/focused context",
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "class": "com.taskmanagement.SecurityIntegrationTest",
+    "group": "SpringBootTest",
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "class": "com.taskmanagement.service.OwnershipServiceTest",
+    "group": "Unit/focused context",
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "class": "com.taskmanagement.service.TaskAttachmentServiceTest",
+    "group": "Unit/focused context",
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  {
+    "class": "com.taskmanagement.service.TaskServiceTest",
+    "group": "Unit/focused context",
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  }
+]

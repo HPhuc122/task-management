@@ -157,6 +157,87 @@ Do not use `docker compose down -v` for the old project if its data matters.
 `docker compose down` preserves database, Redis and RabbitMQ volumes. Running
 `docker compose down -v` deletes those volumes and their data.
 
+### 3.1 Reproduce a verified environment
+
+Third-party container images in `docker-compose.yml`, `docker-compose.clean-test.yml`,
+the Dockerfile and CI are pinned with `tag@sha256:digest`. The tag describes
+the image family; the digest selects the fixed image content even if that tag
+later changes. Both the Maven build image and Java runtime image are pinned.
+The digests refer to multi-platform image manifests; use the same platform
+when comparing test or benchmark results.
+
+For a demo or report, use a clean checkout of the reviewed source commit.
+Record that commit, Docker version, platform and image references along with
+the test command and result:
+
+```bash
+git rev-parse HEAD
+docker version --format '{{.Server.Version}}'
+docker info --format '{{.OSType}}/{{.Architecture}}'
+docker compose -p taskflow-clean -f docker-compose.clean-test.yml config --images
+```
+
+The independent test stack uses port 18080 and separate volumes:
+
+```bash
+docker compose -p taskflow-clean -f docker-compose.clean-test.yml up --build -d
+docker compose -p taskflow-clean -f docker-compose.clean-test.yml ps -a
+docker compose -p taskflow-clean -f docker-compose.clean-test.yml stop
+```
+
+Named volumes retain data between runs. For a fresh database, choose a new
+test project name and stop the previous test stack before reusing port 18080.
+Keep a private record of the environment settings and starting dataset used
+for each experiment. Do not include passwords, JWT keys or tokens in report
+screenshots or committed evidence. Benchmark comparisons also need consistent
+hardware, resource limits, dataset, warm-up and load settings; pinning images
+alone does not guarantee identical timings or byte-identical application builds.
+
+To update an image, inspect its intended tag with
+`docker buildx imagetools inspect <image>:<tag>`, then replace its digest in
+every applicable Compose file, Dockerfile and CI reference together. Build
+the application, run the relevant tests and start the independent stack
+before submitting the update for review. The Dockerfile packages with
+`-DskipTests`; its successful build must be accompanied by separate test results.
+
+### 3.2 Run verification and benchmarks
+
+With Python 3, Docker Engine and the local `.env` configured, run the complete
+backend verification from the repository root:
+
+```powershell
+python verification/run-chapter-review.py
+python verification/run-evidence.py
+docker compose -p taskflow-chapter-review -f docker-compose.clean-test.yml -f target/chapter-review/test-services.json stop
+```
+
+This uses an independent PostgreSQL/Redis/RabbitMQ/Mailpit/MinIO stack and enables
+all database, attachment and notification test groups. The JPA slice uses real
+PostgreSQL with embedded database replacement disabled. MVC slices mock their
+services; unit/focused-context tests have a separate scope. The recorded
+2026-10-16 run passed **115 tests, with no failures, errors or skipped cases**.
+See [verification instructions and limitations](verification/README.md) and the
+[recorded test summary](verification/results/chapter-review-2026-10-16/test-summary.json).
+The runtime evidence checks the controller's CGLIB proxy, self-invocation and
+actual successful/failed HTTP calls. Full local logs are under `target/chapter-review/`.
+
+Run the database index experiment or Redis API comparison separately:
+
+```powershell
+python performance/indexing-benchmark.py
+python performance/cache-benchmark.py
+python performance/summarize-cache-benchmark.py
+```
+
+The index experiment uses 200,000 synthetic tasks and 1,000 users in a disposable
+database. The Redis comparison uses the three-category seed fixture and two
+temporary builds differing only in `@EnableCaching`; application sources remain
+unchanged. Its isolated services stop after the run. Read the fixture/resource
+requirements and retained-volume behavior before repeating either experiment:
+[indexing protocol](performance/INDEXING.md),
+[cache protocol](performance/CACHE-BENCHMARK.md).
+Results are workload-specific, not production performance guarantees.
+
 ## 4. Local test accounts and implemented features
 
 Copying `.env.example` enables `dev,demo` and supplies **public local-only**
@@ -181,10 +262,14 @@ already has a different password or role, startup fails instead of overwriting i
 use a fresh local database or restore the expected credentials.
 
 - The `demo` profile runs the IoC/DI demo on
-  startup. The log shows two `Greeter` beans, `@Primary` selection and the same
-  singleton instance injected into two services. Spring creates and manages
-  these beans when the application context starts; constructing one with
-  `new` would bypass container injection and Spring proxies.
+  startup. The log shows two `Greeter` beans, default `@Primary` selection,
+  explicit `@Qualifier("formalgreeter")` selection and the same singleton
+  injected into two services. Two calls to `ObjectProvider.getObject()` return
+  distinct `PrototypeNote` instances. Spring initializes non-lazy singletons
+  when the context starts and prototypes when requested. Lifecycle tests verify
+  `@PostConstruct` and singleton destruction; prototype destruction is not
+  automatic. Constructing an object with `new` bypasses automatic container
+  injection, lifecycle callbacks and Spring proxies.
 - The default `dev` profile logs Hibernate SQL and bound parameters. `prod`
   suppresses detailed SQL logs. Never enable bound-parameter logging for
   production data.
@@ -208,7 +293,7 @@ creates the schema and seed data. Without `RUN_DATABASE_TESTS=true`, database
 tests are skipped; unit and MVC tests still run.
 
 GitHub Actions runs `mvn verify` on every push and pull request with disposable
-PostgreSQL and Redis services and all integration tests enabled.
+PostgreSQL, Redis, RabbitMQ, Mailpit and MinIO services and all integration tests enabled.
 
 ```bash
 RUN_DATABASE_TESTS=true mvn test
@@ -328,10 +413,10 @@ database and Docker MinIO. Start isolated fixtures and run:
 ```bash
 docker run -d --name attachment-review-postgres \
   -e POSTGRES_DB=attachment_test -e POSTGRES_USER=attachment_test \
-  -e POSTGRES_PASSWORD=attachment_test_only -p 127.0.0.1:15432:5432 postgres:17
+  -e POSTGRES_PASSWORD=attachment_test_only -p 127.0.0.1:15432:5432 postgres:17@sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f
 docker run -d --name attachment-review-minio \
   -e MINIO_ROOT_USER=test-access-key -e MINIO_ROOT_PASSWORD=test-secret-key \
-  -p 127.0.0.1:19000:9000 cgr.dev/chainguard/minio:latest server /data
+  -p 127.0.0.1:19000:9000 cgr.dev/chainguard/minio:latest@sha256:2136d593beacf4461187035eca949fe49abd589d5079735025c711ca58fee0c8 server /data
 until docker exec attachment-review-postgres pg_isready -U attachment_test; do sleep 1; done
 curl --fail --silent --show-error --retry 30 --retry-all-errors --retry-delay 2 \
   --connect-timeout 2 --max-time 5 http://localhost:19000/minio/health/ready

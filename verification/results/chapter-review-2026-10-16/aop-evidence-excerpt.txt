@@ -1,0 +1,13 @@
+EVIDENCE TaskController proxy=com.taskmanagement.controller.TaskController$$SpringCGLIB$$0
+EVIDENCE isCglibProxy=true isJdkDynamicProxy=false
+2026-10-16T14:31:11.330Z  INFO 59 --- [task-management] [           main] c.t.logging.ApiTimingAspect              : API SelfInvocationController.outer completed in 0 ms (success)
+EVIDENCE outer->inner: advice_count=1; inner_advice_count=0
+2026-10-16T14:31:11.333Z  INFO 59 --- [task-management] [           main] c.t.logging.ApiTimingAspect              : API SelfInvocationController.inner completed in 0 ms (success)
+EVIDENCE external inner: advice_count=1
+2026-10-16T14:31:12.070Z  INFO 59 --- [task-management] [nio-8080-exec-1] c.t.logging.ApiTimingAspect              : API AuthController.login completed in 181 ms (success)
+2026-10-16T14:31:12.859Z  INFO 59 --- [task-management] [nio-8080-exec-2] c.t.logging.ApiTimingAspect              : API CategoryController.getAll completed in 651 ms (success)
+EVIDENCE GET /api/categories -> HTTP 200
+2026-10-16T14:31:12.935Z  INFO 59 --- [task-management] [nio-8080-exec-3] c.t.logging.ApiTimingAspect              : API TaskController.findById completed in 15 ms (failure)
+EVIDENCE GET /api/tasks/9223372036854775807 -> HTTP 404
+EVIDENCE GET /api/auth/me without token -> HTTP 401 (before controller)
+EVIDENCE COMPLETE
