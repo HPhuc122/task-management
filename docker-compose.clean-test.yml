@@ -1,0 +1,133 @@
+# TaskFlow clean test environment for the Week 5 freeze.
+# Run as an INDEPENDENT compose file, never layered on top of docker-compose.yml.
+# Usage (PowerShell): docker compose -p taskflow-clean -f docker-compose.clean-test.yml config --quiet
+# Actual startup is a separate step after the original stack has been stopped safely.
+services:
+  app:
+    build: .
+    restart: "no"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev,demo
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: taskflow_clean_test
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER must be set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
+      JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL:-1h}
+      DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:?DEMO_USER_PASSWORD must be set in .env}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:?DEMO_ADMIN_PASSWORD must be set in .env}
+      NOTIFICATIONS_ENABLED: "false"
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER:-task_app}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-local-rabbit-password}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_AUTH: "false"
+      SMTP_STARTTLS: "false"
+      MAIL_FROM: notifications@taskmanagement.local
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-task_minio}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-local-minio-password}
+      S3_BUCKET: taskflow-clean-attachments
+      S3_PATH_STYLE_ACCESS: "true"
+      S3_CREATE_BUCKET: "true"
+      ATTACHMENT_MAX_FILE_SIZE: 10MB
+    ports:
+      - "127.0.0.1:18080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+      minio-ready:
+        condition: service_completed_successfully
+
+  postgres:
+    image: postgres:17
+    restart: "no"
+    environment:
+      POSTGRES_DB: taskflow_clean_test
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER must be set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+    volumes:
+      - clean_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d taskflow_clean_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    restart: "no"
+    volumes:
+      - clean_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  rabbitmq:
+    image: rabbitmq:4.1-management
+    restart: "no"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-task_app}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-local-rabbit-password}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-/}
+    volumes:
+      - clean_rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    restart: "no"
+
+  minio:
+    image: cgr.dev/chainguard/minio:latest
+    command: server /data --console-address ":9001"
+    restart: "no"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-task_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-local-minio-password}
+    volumes:
+      - clean_minio_data:/data
+
+  minio-ready:
+    image: curlimages/curl:8.12.1
+    depends_on:
+      minio:
+        condition: service_started
+    command:
+      - "--fail"
+      - "--silent"
+      - "--show-error"
+      - "--retry"
+      - "30"
+      - "--retry-all-errors"
+      - "--retry-delay"
+      - "2"
+      - "--connect-timeout"
+      - "2"
+      - "--max-time"
+      - "5"
+      - "http://minio:9000/minio/health/ready"
+
+volumes:
+  clean_postgres_data:
+  clean_redis_data:
+  clean_rabbitmq_data:
+  clean_minio_data:
