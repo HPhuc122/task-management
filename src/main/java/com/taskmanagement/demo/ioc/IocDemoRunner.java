@@ -2,6 +2,7 @@ package com.taskmanagement.demo.ioc;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -14,11 +15,17 @@ public class IocDemoRunner implements CommandLineRunner {
     private final GreetingService greetingService;
     private final ReminderService reminderService;
     private final List<Greeter> allGreeters;
+    private final FormalGreetingService formalGreetingService;
+    private final ObjectProvider<PrototypeNote> prototypeNotes;
 
-    public IocDemoRunner(GreetingService greetingService, ReminderService reminderService, List<Greeter> allGreeters) {
+    public IocDemoRunner(GreetingService greetingService, ReminderService reminderService,
+                         List<Greeter> allGreeters, FormalGreetingService formalGreetingService,
+                         ObjectProvider<PrototypeNote> prototypeNotes) {
         this.greetingService = greetingService;
         this.reminderService = reminderService;
         this.allGreeters = allGreeters;
+        this.formalGreetingService = formalGreetingService;
+        this.prototypeNotes = prototypeNotes;
     }
 
     @Override 
@@ -33,6 +40,12 @@ public class IocDemoRunner implements CommandLineRunner {
         log.info("  => CasualGreeter được đánh dấu @Primary nên container tự chọn nó"
                 + " để tiêm vào GreetingService, dù class này chỉ khai báo phụ thuộc"
                 + " vào interface Greeter, không hề biết tới CasualGreeter.");
+
+        log.info("@Qualifier(\"formalgreeter\") chọn bean: {}; lời chào: {}",
+                formalGreetingService.exposeGreeter().getClass().getSimpleName(),
+                formalGreetingService.buildGreeting("Phuc"));
+        log.info("Qualifier thu hẹp bean phù hợp trước khi xét @Primary;"
+                + " FormalGreetingService nhận Formalgreeter thay vì CasualGreeter.");
  
         Greeter injectedIntoGreetingService = greetingService.exposeGreeter();
         Greeter injectedIntoReminderService = reminderService.exposeGreeter();
@@ -45,13 +58,24 @@ public class IocDemoRunner implements CommandLineRunner {
         log.info("  identityHashCode trong ReminderService: {}",
                 System.identityHashCode(injectedIntoReminderService));
         log.info("  => {} vì bean Greeter mặc định có scope \"singleton\": container chỉ"
-                + " tạo DUY NHẤT 1 instance CasualGreeter rồi tái sử dụng ở mọi nơi"
+                + " tạo 1 instance cho bean CasualGreeter trong ApplicationContext rồi tái sử dụng ở mọi nơi"
                 + " cần tới nó, kể cả khi hai service hoàn toàn không biết nhau.",
                 sameInstance ? "Giống nhau, như kỳ vọng" : "Khác nhau (không mong đợi!)");
 
+        PrototypeNote firstNote = prototypeNotes.getObject();
+        PrototypeNote secondNote = prototypeNotes.getObject();
+        log.info("Prototype: hai lần ObjectProvider.getObject() có cùng instance? {}",
+                firstNote == secondNote);
+        log.info("Prototype: @PostConstruct được gọi cho cả hai instance? {}",
+                firstNote.isInitializedBySpring() && secondNote.isInitializedBySpring());
+        log.info("Prototype được tạo mỗi lần yêu cầu qua provider; tiêm trực tiếp vào"
+                + " singleton chỉ giữ instance đã được cấp lúc tiêm.");
+        log.info("Khi đóng context, Spring gọi @PreDestroy cho singleton nhưng không"
+                + " tự gọi cho prototype; bên sử dụng chịu trách nhiệm giải phóng tài nguyên.");
+
         CasualGreeter managed = (CasualGreeter) injectedIntoGreetingService;
         CasualGreeter manuallyCreated = new CasualGreeter();
-        log.info("Spring tạo bean khi khởi tạo ApplicationContext; @PostConstruct được gọi: {}",
+        log.info("Singleton không lazy được tạo khi khởi tạo ApplicationContext; @PostConstruct được gọi: {}",
                 managed.isInitializedBySpring());
         log.info("Tự new() tạo instance ngoài container: cùng object với bean? {};"
                 + " @PostConstruct được gọi? {}",
