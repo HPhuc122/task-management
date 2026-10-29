@@ -41,6 +41,11 @@ Trọng tâm của project là:
 
 Project không tập trung vào độ phức tạp của nghiệp vụ.
 
+Các phần mở rộng đã có trong mã nguồn phục vụ minh họa kỹ thuật gồm Redis cache,
+phân trang Task, thông báo email khi tạo Task qua RabbitMQ và tệp đính kèm Task
+qua S3-compatible object storage. Chúng không mở rộng hệ thống thành nền tảng
+quản lý nhóm hay dịch vụ email tổng quát.
+
 ---
 
 # 2. Mục tiêu của project
@@ -92,15 +97,15 @@ Nghiệp vụ chỉ bao gồm các chức năng cần thiết cho Task Managemen
 
 Không mở rộng project bằng các chức năng không phục vụ mục tiêu học Spring Boot.
 
-Không tự ý thêm:
+Các ngoại lệ đã được triển khai trong phạm vi Task Management là thông báo email
+khi tạo Task (mục 3.9) và tệp đính kèm Task (mục 3.10). Ngoài hai luồng này,
+không tự ý thêm:
 
 - Chat
-- Notification
-- File upload
 - Team management
 - Comment
 - Payment
-- Email service
+- Email service độc lập
 - Microservices
 
 nếu không có yêu cầu mới được xác nhận.
@@ -128,8 +133,10 @@ vòng đời HTTP như xác thực và tuần tự hóa response.
 
 ## 3.4. Database
 
-PostgreSQL lưu bốn bảng `users`, `categories`, `tasks`, `projects`. Flyway quản lý schema
-qua migration trong `src/main/resources/db/migration`; Hibernate chỉ validate.
+PostgreSQL lưu bốn bảng nghiệp vụ chính `users`, `categories`, `tasks`, `projects`;
+V5 thêm `api_idempotency` và `notification_outbox`, V6 thêm
+`task_attachments`. Flyway quản lý schema qua migration trong
+`src/main/resources/db/migration`; Hibernate chỉ validate.
 Entity JPA đặt trong package `com.taskmanagement.entity`.
 
 - Mỗi user có email duy nhất, password hash và role USER hoặc ADMIN.
@@ -140,16 +147,32 @@ Entity JPA đặt trong package `com.taskmanagement.entity`.
 - Xóa category sẽ đặt category_id của task về NULL và giữ lại task.
 - Khóa chính BIGINT identity. Thời gian dùng TIMESTAMPTZ và Java Instant.
 - Database tự cập nhật updated_at khi UPDATE; không lưu mật khẩu dạng rõ.
-- Entity chỉ ánh xạ quan hệ từ Task đến User/Category, tải LAZY.
-- Quyền quản trị user/category sẽ được thực thi ở tầng service/security khi triển khai API.
+- Task ánh xạ LAZY đến User, Category và Project; Project ánh xạ LAZY đến User.
+- `TaskAttachment` ánh xạ LAZY đến Task. Bảng `task_attachments` giữ metadata và
+  object key; nội dung tệp được lưu trong object storage, không lưu trong PostgreSQL.
+- Quyền quản trị Category nằm ở tầng service/security; API quản trị User chưa được triển khai.
 
 ## 3.5. API, cache và phân trang hiện có
 
 - `CategoryController` chỉ nhận request/response; `CategoryService` xử lý nghiệp vụ và gọi `CategoryRepository`.
 - `TaskController` gọi `TaskService`; service lấy dữ liệu qua `TaskRepository` và trả DTO, không trả JPA entity trực tiếp.
 - Spring Cache dùng Redis cho danh sách và từng category. Service khai báo `@Cacheable`, `@CachePut`, `@CacheEvict`; `RedisCacheConfig` cấu hình nơi lưu và thời gian sống. Khi ghi category, cache liên quan được cập nhật hoặc xóa. Cache dùng Jackson 3 để ghi/đọc DTO và có prefix `boot4::` nhằm tách dữ liệu cache theo định dạng cũ.
+- Cache Category có TTL một giờ, không cache null. Khóa danh sách là
+  `boot4::categories::all`, khóa chi tiết là `boot4::categories::<id>`.
+  `transactionAware()` trì hoãn thao tác ghi/xóa cache đến sau khi transaction
+  database commit. Cache hit chỉ bỏ qua truy vấn Category tương ứng; bước xác
+  thực vẫn có thể truy vấn database. Lời gọi phải đi qua proxy Spring.
 - API `GET /api/tasks?userId=...&size=...&cursor=...` phân trang theo `id` giảm dần. Truy vấn trang sau dùng `user_id = ? AND id < ? ORDER BY id DESC LIMIT ?`; migration `V4` tạo index `(user_id, id DESC)`. Đọc thêm một bản ghi để xác định `hasNext`.
-- Docker Compose khởi chạy ứng dụng, PostgreSQL, Redis, RabbitMQ và Mailpit. Ứng dụng chờ PostgreSQL, Redis và RabbitMQ healthy trước khi khởi động.
+- Luồng cursor bắt buộc có `userId`; `cursor` và `size` là tùy chọn, số dương.
+  Mặc định 20 bản ghi, giới hạn 100; response gồm `content`, `nextCursor`,
+  `hasNext`. GET Task không có cả ba tham số trả mảng; chỉ gửi `cursor` hoặc
+  `size` mà không có `userId` không khớp route danh sách được hỗ trợ.
+- Dashboard và tìm kiếm/lọc trạng thái, ưu tiên, dự án, danh mục, quá hạn do
+  frontend tổng hợp trên dữ liệu được API cho phép truy cập. Backend chưa có
+  endpoint thống kê hay các tham số lọc này. Project và Category trả mảng.
+- Docker Compose khởi chạy ứng dụng, PostgreSQL, Redis, RabbitMQ, Mailpit và
+  MinIO. Ứng dụng chờ PostgreSQL, Redis, RabbitMQ và bước kiểm tra MinIO sẵn
+  sàng trước khi khởi động.
 
 ## 3.6. CRUD API
 
@@ -245,3 +268,63 @@ Chưa gửi mail cho update/delete, Project hoặc Category.
   để xem mail, không gửi ra Internet. SMTP thật cấu hình qua biến môi trường.
 - Migration V5 bổ sung hai bảng hạ tầng; không thay đổi V1–V4. Outbox và key được
   giữ lâu dài; chưa có cleanup tự động vì xóa sẽ làm mất khả năng deduplicate.
+
+## 3.10. Tệp đính kèm Task qua S3-compatible object storage
+
+V6 thêm bảng `task_attachments` với khóa ngoại đến Task và index `(task_id, id)`.
+Metadata gồm object key duy nhất, tên tệp, content type, kích thước, ETag và
+thời gian tạo/cập nhật. Tệp thực nằm trong bucket riêng tư; Docker Compose dùng
+MinIO cho local/demo, còn cấu hình S3-compatible lấy qua biến môi trường. Compose
+tạo bucket local khi ứng dụng khởi động; môi trường khác phải cung cấp bucket sẵn.
+
+- Các API yêu cầu JWT tại `/api/tasks/{taskId}/attachments`: GET danh sách metadata,
+  POST multipart part `file`, GET `/{attachmentId}/content` và DELETE
+  `/{attachmentId}`. POST trả 201, DELETE trả 204. Download trả nội dung bằng
+  `Content-Disposition: attachment`.
+- `TaskAttachmentController` xử lý HTTP; `TaskAttachmentService` kiểm tra Task,
+  quyền sở hữu, dữ liệu tệp và điều phối repository/object storage. USER chỉ thao
+  tác với Task mình sở hữu; ADMIN được truy cập theo quy tắc hiện có. Tên tệp
+  được loại bỏ path/control characters; tệp rỗng bị từ chối. Giới hạn mặc định
+  10 MB qua `ATTACHMENT_MAX_FILE_SIZE`; giới hạn toàn request cấu hình riêng.
+- Upload ghi object trước rồi lưu metadata trong transaction PostgreSQL. Nếu
+  transaction rollback, callback cố xóa object đã ghi. Xóa attachment hoặc Task
+  xóa metadata trong transaction và chỉ xóa object sau khi commit. Không có
+  transaction nguyên tử giữa PostgreSQL và object storage: crash, lỗi cleanup
+  hoặc kết quả commit không xác định có thể để lại object mồ côi. Cleanup chỉ là
+  best effort và ghi log để đối soát; chưa có durable retry hay job dọn orphan.
+- `TaskAttachmentRepository` truy cập metadata qua JPA. Test tích hợp dùng
+  PostgreSQL và MinIO thật để kiểm tra upload/download/delete và các nhánh
+  rollback; kiểm thử API kiểm tra quyền truy cập. CI bật test attachment cùng
+  build/test trên push và PR.
+
+## 3.11. Kiểm thử và môi trường tái lập
+
+- Unit test kiểm tra logic độc lập; `@WebMvcTest` mock service để kiểm tra HTTP,
+  validation và security. `@DataJpaTest` tắt thay thế database nhúng và chạy với
+  PostgreSQL thật. Các truy vấn PostgreSQL đặc thù, transaction, idempotency,
+  RabbitMQ/SMTP và attachment được kiểm tra bằng các test tích hợp phù hợp.
+- Các cờ `RUN_DATABASE_TESTS`, `RUN_NOTIFICATION_TESTS`, `RUN_ATTACHMENT_TESTS`
+  quyết định nhóm tích hợp được chạy. Không coi một lần `mvn test` có nhóm bị
+  skip là bằng chứng đã kiểm thử toàn bộ. CI bật cả ba cờ và chạy `mvn verify`;
+  job frontend chạy `npm ci`, lint, test và build riêng.
+- Dockerfile, hai tệp Compose và image dịch vụ CI cố định bằng digest. Stack
+  `docker-compose.clean-test.yml` dùng cổng API 18080, network và volume riêng;
+  dữ liệu không tự đồng bộ với stack phát triển. Migration tạo cùng cấu trúc,
+  còn dữ liệu của mỗi môi trường phụ thuộc seed và thao tác trong môi trường đó.
+- Quy trình chạy lại và bằng chứng theo từng thời điểm nằm tại
+  [verification/README.md](../verification/README.md). Kết quả lưu không thay
+  thế kiểm thử cho commit mới. Benchmark index/cache có giao thức riêng trong
+  `performance/`; số đo chỉ áp dụng cho dữ liệu và tải thử đã ghi nhận.
+
+## 3.12. Frontend minh họa
+
+React/Vite trong `frontend/` gọi API thật, chạy riêng tại cổng 5173 và proxy
+`/api` tới backend trong môi trường dev. Docker Compose hiện không đóng gói
+frontend. UI gồm đăng nhập/đăng ký, Dashboard, Task/Project, Category cho ADMIN
+và quản lý tệp đính kèm. Backend vẫn quyết định danh tính và quyền trên từng
+request; `userId` do client cung cấp không thay thế JWT đã xác minh.
+
+Frontend dùng cursor API khi xem công việc của mình không có bộ lọc; khi lọc
+hoặc ADMIN xem toàn hệ thống, việc lọc/phân trang diễn ra tại client trên danh
+sách được phép truy cập. Cách này có giới hạn bộ nhớ khi dữ liệu lớn. Hướng dẫn
+chạy và kiểm thử UI nằm tại [frontend/README.md](../frontend/README.md).

@@ -55,10 +55,11 @@ The system allows users to:
 - delete tasks
 - change task status
 - assign categories
-- manage users
 - create, view, update and delete projects
 
-An administrator can manage users and categories.
+An administrator can manage all tasks, projects and categories. A User
+management API is not implemented; account administration currently requires
+database administration outside the public registration API.
 
 
 ---
@@ -154,8 +155,8 @@ docker compose -p task-management-boot4 up --build -d
 The new project starts with a fresh database and Redis/RabbitMQ volumes.
 Do not use `docker compose down -v` for the old project if its data matters.
 
-`docker compose down` preserves database, Redis and RabbitMQ volumes. Running
-`docker compose down -v` deletes those volumes and their data.
+`docker compose down` preserves PostgreSQL, Redis, RabbitMQ and MinIO volumes.
+Running `docker compose down -v` deletes those volumes, including attachment bytes.
 
 ### 3.1 Reproduce a verified environment
 
@@ -280,6 +281,11 @@ use a fresh local database or restore the expected credentials.
   response bodies, and exception details are not logged by the timing aspect.
 - Authenticated ADMIN `GET /api/categories` uses Redis cache. Creating,
   updating or deleting a category updates or invalidates its cache entries.
+  Category entries have a one-hour TTL; null values are not cached. Keys are
+  `boot4::categories::all` and `boot4::categories::<id>`. Cache writes and
+  evictions are deferred until the database transaction commits through
+  `RedisCacheManager.transactionAware()`. A category cache hit avoids its
+  repository query, but authentication can still query PostgreSQL.
 - Authenticated `GET /api/tasks?userId=<your-user-id>&size=1` returns a cursor
   page. Pass the returned `nextCursor` as `cursor` to request the next page. `V4` adds the
   `(user_id, id DESC)` index used by this query pattern.
@@ -325,6 +331,16 @@ Mockito is configured as a Java agent for Java 21 test execution.
 | GET | `/api/tasks/{id}` | `/api/projects/{id}` | 200 |
 | PUT | `/api/tasks/{id}` | `/api/projects/{id}` | 200 |
 | DELETE | `/api/tasks/{id}` | `/api/projects/{id}` | 204 |
+
+The plain `GET /api/tasks` returns an array. Supplying `userId` selects the
+cursor route and returns `{content, nextCursor, hasNext}` instead: `userId`
+is required for that route, while positive `cursor` and `size` are optional.
+The default size is 20; values above 100 are capped at 100. Supplying only
+`cursor` or `size` without `userId` does not select a supported list route.
+Project and Category list endpoints return arrays. Search, status/priority,
+project/category and overdue filters, plus Dashboard statistics, are computed
+by the frontend from authorized records; they are not backend query parameters
+or a dedicated Dashboard API.
 
 All CRUD requests require `Authorization: Bearer <accessToken>`. USER sees only
 its own records and must send its own `userId`; ADMIN can manage every record.
@@ -662,3 +678,25 @@ deduplication history. Monitor unsent events, publishing attempts and the DLQ.
 GitHub Actions provisions disposable PostgreSQL, Redis, RabbitMQ and Mailpit and
 runs all of these tests. See [Spring AMQP publisher confirms and returns](https://docs.spring.io/spring-amqp/reference/amqp/template.html)
 and [Mailpit's local SMTP behavior](https://mailpit.axllent.org/docs/usage/sending-messages/).
+
+## Frontend demo
+
+The React/Vite frontend runs separately from Docker Compose. With Node.js
+22.12+ and npm installed, start the backend first, then run:
+
+```powershell
+cd frontend
+npm ci
+npm run dev
+```
+
+Open `http://localhost:5173`. Vite proxies `/api` to `http://localhost:8080`;
+if `APP_PORT` differs, set `API_PROXY_TARGET` in `frontend/.env.local` to the
+backend origin. Never put secrets in `VITE_*` variables. The interface includes
+authentication, Task/Project CRUD, ADMIN Category CRUD, Dashboard, filtering,
+cursor navigation and attachment upload/download/preview.
+
+From `frontend`, run `npm run lint`, `npm test` and `npm run build` to perform
+the same frontend checks configured in CI. UI tests use fixtures and mocks;
+they do not replace backend integration tests or a real browser/API demo.
+See [frontend setup, API boundaries and demo instructions](frontend/README.md).
