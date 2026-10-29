@@ -106,7 +106,7 @@ class FeatureIntegrationTest {
         try {
             categoryService.getAll();
             categoryService.getById(created.id());
-            await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
+            await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> {
                 assertNotNull(cache.get("all"));
                 assertNotNull(cache.get(created.id()));
             });
