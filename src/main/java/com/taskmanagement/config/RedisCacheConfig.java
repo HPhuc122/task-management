@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
+import org.springframework.data.redis.cache.RedisCacheWriter;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.RedisSerializer;
@@ -63,7 +64,12 @@ public class RedisCacheConfig {
         Map<String, RedisCacheConfiguration> perCacheOverrides = Map.of("categories",
                 defaultConfig.entryTtl(Duration.ofHours(1)));
 
-        return RedisCacheManager.builder(connectionFactory)
+        // Redis 4 can dispatch writes asynchronously with Lettuce. Complete each
+        // write/eviction before the next service call can read the same key.
+        RedisCacheWriter writer = RedisCacheWriter.create(connectionFactory,
+                config -> config.immediateWrites(true));
+
+        return RedisCacheManager.builder(writer)
                 .cacheDefaults(defaultConfig)
                 .withInitialCacheConfigurations(perCacheOverrides)
                 // Publish cache changes only after the database transaction commits.

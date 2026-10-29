@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -37,7 +38,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@TestPropertySource(properties = {"app.cors.allowed-origins=http://localhost:3000", SecurityTestConfig.SECRET_PROPERTY})
+@TestPropertySource(properties = {
+        "app.cors.allowed-origins=http://localhost:3000",
+        "logging.level.org.springframework.cache.interceptor=TRACE",
+        "logging.level.org.springframework.transaction.interceptor=TRACE",
+        SecurityTestConfig.SECRET_PROPERTY})
 @EnabledIfEnvironmentVariable(named = "RUN_DATABASE_TESTS", matches = "true")
 class FeatureIntegrationTest {
     @Autowired MockMvc mvc;
@@ -100,33 +105,36 @@ class FeatureIntegrationTest {
     @Test
     void categoryUpdatesRefreshDetailCacheAndInvalidateListCache() {
         Cache cache = cacheManager.getCache("categories");
+        assertFalse(TransactionSynchronizationManager.isSynchronizationActive(),
+                "A previous test must not leave transaction synchronization active");
         CategoryResponse created = categoryService.create(
                 new CategoryRequest("cache-" + UUID.randomUUID(), "original"));
         boolean deleted = false;
         try {
-            categoryService.getAll();
-            categoryService.getById(created.id());
-            await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> {
-                assertNotNull(cache.get("all"));
-                assertNotNull(cache.get(created.id()));
-            });
+            assertFalse(TransactionSynchronizationManager.isActualTransactionActive(),
+                    "Category creation must commit before checking the cache");
+            List<CategoryResponse> categories = categoryService.getAll();
+            assertTrue(categories.contains(created), "The list must include the committed category");
+            Cache.ValueWrapper listCache = cache.get("all");
+            assertNotNull(listCache, "getAll must populate categories::all before returning");
+            assertEquals(categories, listCache.get());
+            assertEquals(created, categoryService.getById(created.id()));
+            Cache.ValueWrapper detailCache = cache.get(created.id());
+            assertNotNull(detailCache, "getById must populate the detail cache before returning");
+            assertEquals(created, detailCache.get());
 
             CategoryResponse updated = categoryService.update(created.id(),
                     new CategoryRequest(created.name(), "updated"));
-            await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> {
-                assertNull(cache.get("all"));
-                Cache.ValueWrapper cached = cache.get(created.id());
-                assertNotNull(cached);
-                assertEquals(updated, cached.get());
-            });
+            assertNull(cache.get("all"), "A committed update must invalidate the list cache");
+            Cache.ValueWrapper cached = cache.get(created.id());
+            assertNotNull(cached, "A committed update must refresh the detail cache");
+            assertEquals(updated, cached.get());
 
             categoryService.getAll();
             categoryService.delete(created.id());
             deleted = true;
-            await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
-                assertNull(cache.get("all"));
-                assertNull(cache.get(created.id()));
-            });
+            assertNull(cache.get("all"), "A committed deletion must invalidate the list cache");
+            assertNull(cache.get(created.id()), "A committed deletion must invalidate the detail cache");
         } finally {
             if (!deleted) categoryService.delete(created.id());
         }

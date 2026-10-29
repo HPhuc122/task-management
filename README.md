@@ -284,7 +284,9 @@ use a fresh local database or restore the expected credentials.
   Category entries have a one-hour TTL; null values are not cached. Keys are
   `boot4::categories::all` and `boot4::categories::<id>`. Cache writes and
   evictions are deferred until the database transaction commits through
-  `RedisCacheManager.transactionAware()`. A category cache hit avoids its
+  `RedisCacheManager.transactionAware()`. The Redis writer uses
+  `immediateWrites(true)` so each operation completes within the after-commit
+  callback instead of dispatching a background write. A category cache hit avoids its
   repository query, but authentication can still query PostgreSQL.
 - Authenticated `GET /api/tasks?userId=<your-user-id>&size=1` returns a cursor
   page. Pass the returned `nextCursor` as `cursor` to request the next page. `V4` adds the
