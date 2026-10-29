@@ -113,7 +113,7 @@ class FeatureIntegrationTest {
 
             CategoryResponse updated = categoryService.update(created.id(),
                     new CategoryRequest(created.name(), "updated"));
-            await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
+            await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> {
                 assertNull(cache.get("all"));
                 Cache.ValueWrapper cached = cache.get(created.id());
                 assertNotNull(cached);

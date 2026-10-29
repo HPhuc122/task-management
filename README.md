@@ -55,7 +55,6 @@ The system allows users to:
 - delete tasks
 - change task status
 - assign categories
-- manage users
 - create, view, update and delete projects
 
 An administrator can manage all tasks, projects and categories. A User
